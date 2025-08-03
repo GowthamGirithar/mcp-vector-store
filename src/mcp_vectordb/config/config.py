@@ -24,10 +24,16 @@ class EmbeddingConfig(BaseModel):
     api_key: Optional[str] = Field(default=None)
 
 
+class ServerConfig(BaseModel):
+    """Server configuration for MCP server."""
+    transport: str = Field(default="streamable-http")
+
+
 class Settings(BaseModel):
     """Main settings class loaded from environment variables."""
     vector_db: VectorDBConfig
     embedding: EmbeddingConfig
+    server: ServerConfig
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -45,7 +51,11 @@ class Settings(BaseModel):
             api_key=os.getenv("OPENAI_API_KEY")
         )
         
-        return cls(vector_db=vector_db, embedding=embedding)
+        server = ServerConfig(
+            transport=os.getenv("MCP_TRANSPORT", "streamable-http")
+        )
+        
+        return cls(vector_db=vector_db, embedding=embedding, server=server)
 
 
 # Global settings instance

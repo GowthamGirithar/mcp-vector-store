@@ -2,6 +2,7 @@
 
 from mcp.server.fastmcp import FastMCP
 from .services import setup_services
+from .config.config import get_settings
 import asyncio
 
 
@@ -27,7 +28,8 @@ def get_mcp() -> FastMCP:
 def run_server() -> None:
     """Run the server (synchronous entry point)."""
     # more details abou working of stdio, sse, streamable-http are in client example files
-    get_mcp().run(transport="streamable-http") # stdio, sse, streamable-http
+    settings = get_settings()
+    get_mcp().run(transport=settings.server.transport) # stdio, sse, streamable-http
 
 if __name__ == "__main__":
     run_server()
