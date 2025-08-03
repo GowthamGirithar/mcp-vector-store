@@ -19,7 +19,6 @@ settings = None
 #asynchronous context manager using async def and yield.
 # we can use asynccontextmanager when we need to setup before and clean up after - using async and yield
 async def setup_services(app):
-    print("🚀 setup_services called!")
     """Initialize and cleanup services for FastMCP server."""
     global vector_db, embedding_service, settings
     

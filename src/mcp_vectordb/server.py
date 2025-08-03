@@ -8,7 +8,6 @@ import asyncio
 # Create FastMCP app
 # Set up services (database, embeddings, etc.)
 # lifespan hook. To tell what to do at the start of the session and end of the session
-# TODO: why not manage the lifecycle hook at the start and end of server instead session
 # mcp.settings.lifespan = setup_services
 mcp = FastMCP(name="vectordb-server", lifespan=setup_services)
 
@@ -22,7 +21,9 @@ def get_mcp() -> FastMCP:
     return mcp
 
 
-# http://127.0.0.1:8000/mcp
+# http://127.0.0.1:8000/mcp for streamable http
+# http://127.0.0.1:8000/sse for SSE
+# we can use Starlette to mount multiple FactMCP server
 def run_server() -> None:
     """Run the server (synchronous entry point)."""
     # more details abou working of stdio, sse, streamable-http are in client example files

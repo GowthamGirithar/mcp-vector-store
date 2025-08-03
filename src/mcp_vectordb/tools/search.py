@@ -48,8 +48,11 @@ async def similarity_search(
             if not isinstance(min_score, (int, float)) or not (0.0 <= min_score <= 1.0):
                 raise ValidationError("min_score must be a number between 0.0 and 1.0")
         
+        # # context injected by the mcp provides the way for the client to know the status of 
+        # the long running task
+        # with context Elicitation , we can even ask it back for somecases like no results found, can we use llm like that
         if ctx:
-            ctx.info(f"Performing similarity search in collection: {validated_collection}")
+            await ctx.info(f"Performing similarity search in collection: {validated_collection}")
         
         # Check if collection exists
         if not await vector_db.collection_exists(validated_collection):
@@ -57,7 +60,7 @@ async def similarity_search(
         
         # Generate query embedding
         if ctx:
-            ctx.debug("Generating embedding for query")
+            await ctx.debug("Generating embedding for query")
         query_embedding = await embedding_service.generate_embedding(validated_query)
         
         # Perform similarity search
@@ -73,7 +76,7 @@ async def similarity_search(
             results = [r for r in results if r.score >= min_score]
         
         if ctx:
-            ctx.info(f"Found {len(results)} results for query")
+            await ctx.info(f"Found {len(results)} results for query")
         
         # Format results
         if not results:
@@ -118,17 +121,17 @@ async def similarity_search(
     except ValidationError as e:
         error_msg = f"Validation error: {e.message}"
         if ctx:
-            ctx.error(error_msg)
+            await ctx.error(error_msg)
         raise ValueError(error_msg)
     
     except VectorDBError as e:
         error_msg = f"Search error: {e.message}"
         if ctx:
-            ctx.error(error_msg)
+            await ctx.error(error_msg)
         raise RuntimeError(error_msg)
     
     except Exception as e:
         error_msg = f"Unexpected error: {str(e)}"
         if ctx:
-            ctx.error(error_msg)
+            await ctx.error(error_msg)
         raise RuntimeError(error_msg)
