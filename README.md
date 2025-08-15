@@ -143,6 +143,11 @@ Currently supported:
 2. Update the service factory in `services.py`
 3. Add configuration options in `config/config.py`
 
+### TODO List
+
+1. Combine BM25 and vector results to provide accuracy
+2. Use LLM to return the response from the BM25 and vector search results inaddition to the simillarity search results
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
