@@ -44,8 +44,23 @@ if __name__ == "__main__":
 SSE - Server Sent Events
 
 SSE (Server-Sent Events) is a one-way, server-to-client streaming protocol over HTTP.
+
+Client connect to the server and get the session ID by /sse and  server will return the all the responses in this channel
+And client request the server with the session ID HTTP POST /messages for the request in different channel.
+Two channels:
+ stream channel (/sse)
+ request channel (/message)
+The response does NOT come in the POST response
+It arrives on the SSE stream.
+
+
+
 MCP moved to streamable HTTP from SSE due to the following reasons,
  - Stremable HTTP is bidirection and maintain the single session for full communication
+
+Client sends request
+Server returns response in the same HTTP response
+SSE only used if server wants to push async events
 
  Flow:
 
