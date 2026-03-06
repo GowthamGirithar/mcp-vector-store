@@ -49,18 +49,9 @@ Client connect to the server and get the session ID by /sse and  server will ret
 And client request the server with the session ID HTTP POST /messages for the request in different channel.
 Two channels:
  stream channel (/sse)
- request channel (/message)
+ request channel (/message?sessionId=)
 The response does NOT come in the POST response
 It arrives on the SSE stream.
-
-
-
-MCP moved to streamable HTTP from SSE due to the following reasons,
- - Stremable HTTP is bidirection and maintain the single session for full communication
-
-Client sends request
-Server returns response in the same HTTP response
-SSE only used if server wants to push async events
 
  Flow:
 
@@ -75,5 +66,15 @@ SSE only used if server wants to push async events
  SSE is one direction, But that doesn’t mean the client can’t talk to the server — it just does so through standard HTTP requests, separately from the SSE stream.
  Client sends requests using POST /messages?...
  Server pushes results back using the persistent SSE stream (GET /sse)
+---------------------------------------------
+
+MCP moved to streamable HTTP from SSE due to the following reasons,
+ - Stremable HTTP is bidirection and maintain the single session for full communication
+
+Client sends request
+Server returns response in the same HTTP response
+SSE only used if server wants to push async events
+
+
 
 '''
