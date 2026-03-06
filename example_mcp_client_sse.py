@@ -70,6 +70,17 @@ It arrives on the SSE stream.
 
 MCP moved to streamable HTTP from SSE due to the following reasons,
  - Stremable HTTP is bidirection and maintain the single session for full communication
+ - Uses JSON-RPC
+
+ FOR EXAMPLE: {
+  "method": "tools/call",
+  "params": {
+    "name": "get_delivery_time",
+    "arguments": {
+      "restaurant_id": "r1"
+    }
+  }
+}
 
 Client sends request
 Server returns response in the same HTTP response
