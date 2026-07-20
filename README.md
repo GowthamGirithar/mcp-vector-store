@@ -100,6 +100,7 @@ Upload a document (PDF, TXT, or MD), chunk it, and store the chunks with automat
 - `document_id` (optional): Custom document ID shared by all chunks (auto-generated if not provided)
 - `chunk_size` (optional): Maximum characters per chunk (defaults to the configured `document.chunk_size`)
 - `chunk_overlap` (optional): Overlap characters between hard-window chunks (defaults to the configured `document.chunk_overlap`)
+- `chunk_strategy` (optional): Chunking strategy to use — `"recursive"` (default; separator-based splitting with a hard-window fallback, applied per page) or `"structural"` (PDFs: one chunk per page unchanged; `.md`/`.txt`: split on Markdown headings into whole sections, falling back to `"recursive"` output when there are no headings)
 
 Each stored chunk is tagged with metadata: `document_id`, `source_filename`, `file_type`, `page_number` (`None` for `.txt`/`.md`), `chunk_index`, `total_chunks`, and `uploaded_at`.
 

@@ -11,11 +11,14 @@ Empty string input returns ``[]`` (there is no content to chunk). Chunks
 are never empty strings.
 """
 
-from typing import List
+import re
+from typing import List, Optional, Tuple
 
 _PARAGRAPH_SEP = "\n\n"
 _LINE_SEP = "\n"
 _WORD_SEP = " "
+
+_HEADING_RE = re.compile(r"^#{1,6}\s.*$", re.MULTILINE)
 
 
 def recursive_chunk(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
@@ -160,3 +163,68 @@ def _hard_window_split(text: str, chunk_size: int, chunk_overlap: int) -> List[s
         start += step
 
     return chunks
+
+
+def structural_chunk(
+    pages: List[Tuple[Optional[int], str]], chunk_size: int, chunk_overlap: int
+) -> List[Tuple[Optional[int], str]]:
+    """Split ``pages`` into structurally coherent chunks.
+
+    Unlike :func:`recursive_chunk`, this operates on the whole document's
+    already-extracted ``(page_number, text)`` pairs (as produced by
+    ``core.parsers.extract_text``) rather than a single string, since the
+    strategy differs by document shape:
+
+    - Multi-page input (the PDF case, ``len(pages) > 1``): each page is
+      passed through unchanged as exactly one output chunk, even if its
+      text is longer than ``chunk_size``.
+    - Single-page input with ``page_number is None`` (the ``.md``/``.txt``
+      case): the text is split on Markdown heading lines
+      (``^#{1,6}\\s.*$``, multiline) into sections — each section is a
+      heading line plus its body up to the next heading or EOF, emitted
+      whole as one chunk with no size-based re-splitting. If there are no
+      heading matches, falls back to :func:`recursive_chunk` so headingless
+      text (typically ``.txt``) is chunked identically to before.
+
+    Args:
+        pages: The document's ``(page_number, text)`` pairs.
+        chunk_size: Forwarded to the no-heading ``recursive_chunk``
+            fallback; has no effect when structural splitting occurs.
+        chunk_overlap: Forwarded to the no-heading ``recursive_chunk``
+            fallback; has no effect when structural splitting occurs.
+
+    Returns:
+        A list of ``(page_number, text)`` chunk tuples.
+    """
+    if not pages:
+        return []
+
+    if len(pages) > 1:
+        return list(pages)
+
+    page_number, text = pages[0]
+    if page_number is not None:
+        return [(page_number, text)]
+
+    return _split_by_headings(text, chunk_size, chunk_overlap)
+
+
+def _split_by_headings(
+    text: str, chunk_size: int, chunk_overlap: int
+) -> List[Tuple[Optional[int], str]]:
+    """Split ``text`` into Markdown heading-delimited sections.
+
+    Falls back to :func:`recursive_chunk` when there are no heading matches.
+    """
+    matches = list(_HEADING_RE.finditer(text))
+
+    if not matches:
+        return [(None, piece) for piece in recursive_chunk(text, chunk_size, chunk_overlap)]
+
+    sections: List[Tuple[Optional[int], str]] = []
+    for index, match in enumerate(matches):
+        start = match.start()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        sections.append((None, text[start:end]))
+
+    return sections

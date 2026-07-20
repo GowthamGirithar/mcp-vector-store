@@ -1,6 +1,6 @@
 import pytest
 
-from mcp_vectordb.core.chunking import recursive_chunk
+from mcp_vectordb.core.chunking import recursive_chunk, structural_chunk
 
 
 SHORT_TEXT = "This is a short piece of text."
@@ -180,3 +180,68 @@ def test_recursive_chunk(case):
         chunk_overlap=case["chunk_overlap"],
     )
     assert chunks == case["expected_chunks"], case["description"]
+
+
+# ---------------------------------------------------------------------------
+# structural_chunk
+# ---------------------------------------------------------------------------
+
+
+def test_structural_chunk_markdown_with_headings_produces_one_chunk_per_section():
+    text = (
+        "## Section One\n"
+        "First section body.\n"
+        "## Section Two\n"
+        "Second section body.\n"
+        "## Section Three\n"
+        "Third section body.\n"
+    )
+
+    chunks = structural_chunk([(None, text)], chunk_size=1000, chunk_overlap=50)
+
+    assert len(chunks) == 3
+    assert all(page_number is None for page_number, _ in chunks)
+    assert chunks[0][1].startswith("## Section One")
+    assert chunks[1][1].startswith("## Section Two")
+    assert chunks[2][1].startswith("## Section Three")
+
+
+def test_structural_chunk_markdown_with_no_headings_matches_recursive_chunk_output():
+    text = "\n\n".join([PARAGRAPH_A, PARAGRAPH_B, PARAGRAPH_C])
+
+    chunks = structural_chunk(
+        [(None, text)], chunk_size=PARAGRAPH_CHUNK_SIZE, chunk_overlap=10
+    )
+    expected = recursive_chunk(text, PARAGRAPH_CHUNK_SIZE, chunk_overlap=10)
+
+    assert chunks == [(None, piece) for piece in expected]
+
+
+def test_structural_chunk_multi_page_input_passes_each_page_through_unchanged():
+    pages = [
+        (1, "Page one content, short."),
+        (2, "Page two content, " + ("x" * 200)),
+        (3, "Page three content, short."),
+    ]
+
+    chunks = structural_chunk(pages, chunk_size=50, chunk_overlap=5)
+
+    assert chunks == pages
+
+
+def test_structural_chunk_single_oversized_section_kept_whole():
+    heading = "## Only Section\n"
+    body = "y" * 500
+    text = heading + body
+
+    chunks = structural_chunk([(None, text)], chunk_size=50, chunk_overlap=5)
+
+    assert chunks == [(None, text)]
+
+
+def test_structural_chunk_empty_input_returns_empty_list():
+    assert structural_chunk([], chunk_size=100, chunk_overlap=10) == []
+
+
+def test_structural_chunk_single_page_empty_text_returns_empty_list():
+    assert structural_chunk([(None, "")], chunk_size=100, chunk_overlap=10) == []

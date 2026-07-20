@@ -253,6 +253,30 @@ def validate_chunk_overlap(chunk_overlap: int, chunk_size: int) -> int:
     return chunk_overlap
 
 
+_ALLOWED_CHUNK_STRATEGIES = {"recursive", "structural"}
+
+
+def validate_chunk_strategy(chunk_strategy: str) -> str:
+    """Validate the chunk strategy used for document splitting.
+
+    Args:
+        chunk_strategy: The chunk strategy to validate
+
+    Returns:
+        The validated chunk strategy
+
+    Raises:
+        ValidationError: If chunk strategy is not one of the allowed values
+    """
+    if chunk_strategy not in _ALLOWED_CHUNK_STRATEGIES:
+        allowed_str = ", ".join(sorted(_ALLOWED_CHUNK_STRATEGIES))
+        raise ValidationError(
+            f"Invalid chunk strategy '{chunk_strategy}'. Allowed: {allowed_str}"
+        )
+
+    return chunk_strategy
+
+
 def _is_json_serializable(value: Any) -> bool:
     """Check if a value is JSON serializable."""
     import json

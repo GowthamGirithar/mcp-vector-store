@@ -10,7 +10,7 @@ from ..server import mcp
 from ..services import get_vector_db, get_embedding_service
 from ..config.config import get_settings
 from ..core.document import Document
-from ..core.chunking import recursive_chunk
+from ..core.chunking import recursive_chunk, structural_chunk
 from ..core.parsers import extract_text, DocumentParseError
 from ..utils.validation import (
     validate_collection_name,
@@ -18,6 +18,7 @@ from ..utils.validation import (
     validate_file_path,
     validate_chunk_size,
     validate_chunk_overlap,
+    validate_chunk_strategy,
 )
 from ..utils.exceptions import VectorDBError, ValidationError
 
@@ -32,6 +33,7 @@ async def upload_document(
     document_id: Optional[str] = None,
     chunk_size: Optional[int] = None,
     chunk_overlap: Optional[int] = None,
+    chunk_strategy: Optional[str] = None,
     ctx: Context = None
 ) -> str:
     """Upload a document (PDF, TXT, or MD), chunk it, embed the chunks, and store them.
@@ -43,6 +45,7 @@ async def upload_document(
         document_id: Optional custom document ID shared by all chunks (auto-generated if not provided)
         chunk_size: Maximum characters per chunk (defaults to configured document.chunk_size)
         chunk_overlap: Overlap characters between hard-window chunks (defaults to configured document.chunk_overlap)
+        chunk_strategy: Chunking strategy to use, "recursive" or "structural" (defaults to configured document.chunk_strategy)
         ctx: FastMCP context for logging and progress reporting
 
     Returns:
@@ -53,17 +56,21 @@ async def upload_document(
         vector_db = get_vector_db()
         embedding_service = get_embedding_service()
 
-        # Resolve chunk_size/chunk_overlap defaults from settings, then validate
+        # Resolve chunk_size/chunk_overlap/chunk_strategy defaults from settings, then validate
         resolved_chunk_size = (
             chunk_size if chunk_size is not None else settings.document.chunk_size
         )
         resolved_chunk_overlap = (
             chunk_overlap if chunk_overlap is not None else settings.document.chunk_overlap
         )
+        resolved_chunk_strategy = (
+            chunk_strategy if chunk_strategy is not None else settings.document.chunk_strategy
+        )
         validated_chunk_size = validate_chunk_size(resolved_chunk_size)
         validated_chunk_overlap = validate_chunk_overlap(
             resolved_chunk_overlap, validated_chunk_size
         )
+        validated_chunk_strategy = validate_chunk_strategy(resolved_chunk_strategy)
 
         # Validate inputs
         validated_file_path = validate_file_path(
@@ -80,18 +87,27 @@ async def upload_document(
         # Extract text (page_number, text) pairs
         pages = extract_text(validated_file_path)
 
-        # Chunk each page
+        # Chunk the document according to the resolved strategy
         page_chunks = []
-        for page_index, (page_number, page_text) in enumerate(pages, start=1):
-            chunks = recursive_chunk(
-                page_text, validated_chunk_size, validated_chunk_overlap
+        if validated_chunk_strategy == "structural":
+            page_chunks = structural_chunk(
+                pages, validated_chunk_size, validated_chunk_overlap
             )
             if ctx:
                 await ctx.debug(
-                    f"Processing page {page_index}/{len(pages)}: {len(chunks)} chunk(s)"
+                    f"Structural chunking produced {len(page_chunks)} chunk(s)"
                 )
-            for chunk_text in chunks:
-                page_chunks.append((page_number, chunk_text))
+        else:
+            for page_index, (page_number, page_text) in enumerate(pages, start=1):
+                chunks = recursive_chunk(
+                    page_text, validated_chunk_size, validated_chunk_overlap
+                )
+                if ctx:
+                    await ctx.debug(
+                        f"Processing page {page_index}/{len(pages)}: {len(chunks)} chunk(s)"
+                    )
+                for chunk_text in chunks:
+                    page_chunks.append((page_number, chunk_text))
 
         total_chunks = len(page_chunks)
         resolved_document_id = document_id if document_id else str(uuid.uuid4())

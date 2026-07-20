@@ -34,6 +34,7 @@ class DocumentConfig(BaseModel):
     chunk_size: int = Field(default=500)
     chunk_overlap: int = Field(default=50)
     max_file_size_mb: float = Field(default=20.0)
+    chunk_strategy: str = Field(default="recursive")
 
 
 class Settings(BaseModel):
@@ -66,7 +67,8 @@ class Settings(BaseModel):
         document = DocumentConfig(
             chunk_size=int(os.getenv("DOCUMENT_CHUNK_SIZE", "500")),
             chunk_overlap=int(os.getenv("DOCUMENT_CHUNK_OVERLAP", "50")),
-            max_file_size_mb=float(os.getenv("DOCUMENT_MAX_FILE_SIZE_MB", "20.0"))
+            max_file_size_mb=float(os.getenv("DOCUMENT_MAX_FILE_SIZE_MB", "20.0")),
+            chunk_strategy=os.getenv("DOCUMENT_CHUNK_STRATEGY", "recursive")
         )
 
         return cls(vector_db=vector_db, embedding=embedding, server=server, document=document)

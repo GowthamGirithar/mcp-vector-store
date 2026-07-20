@@ -199,3 +199,95 @@ async def test_upload_custom_document_id_is_used(fake_vector_db):
     stored = fake_vector_db.stored["documents"]
     for doc in stored:
         assert doc.metadata["document_id"] == "my-custom-doc-id"
+
+
+# ---------------------------------------------------------------------------
+# chunk_strategy (T6)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_upload_structural_strategy_on_markdown_produces_section_chunks(
+    fake_vector_db,
+):
+    await document_tool.upload_document(
+        file_path=fixture_path("sample_sections.md"),
+        chunk_strategy="structural",
+    )
+
+    stored = fake_vector_db.stored["documents"]
+    assert len(stored) == 3
+    assert stored[0].text.startswith("# Introduction")
+    assert stored[1].text.startswith("## Background")
+    assert stored[2].text.startswith("## Details")
+    for doc in stored:
+        assert doc.metadata["page_number"] is None
+
+
+@pytest.mark.asyncio
+async def test_upload_structural_strategy_on_multi_page_pdf_produces_one_chunk_per_page(
+    fake_vector_db,
+):
+    await document_tool.upload_document(
+        file_path=fixture_path("sample.pdf"),
+        chunk_strategy="structural",
+    )
+
+    stored = fake_vector_db.stored["documents"]
+    assert len(stored) == 3
+    page_numbers = [doc.metadata["page_number"] for doc in stored]
+    assert page_numbers == [1, 2, 3]
+
+
+@pytest.mark.asyncio
+async def test_upload_omitted_chunk_strategy_defaults_to_recursive(fake_vector_db):
+    await document_tool.upload_document(file_path=fixture_path("sample.txt"))
+
+    stored = fake_vector_db.stored["documents"]
+    assert len(stored) > 0
+
+
+@pytest.mark.asyncio
+async def test_upload_invalid_chunk_strategy_raises_value_error_before_parsing(
+    monkeypatch,
+):
+    called = {"extract_text": False}
+
+    def fake_extract_text(*args, **kwargs):
+        called["extract_text"] = True
+        raise AssertionError("extract_text should not be called")
+
+    monkeypatch.setattr(document_tool, "extract_text", fake_extract_text)
+
+    with pytest.raises(ValueError):
+        await document_tool.upload_document(
+            file_path=fixture_path("sample.txt"),
+            chunk_strategy="bogus",
+        )
+
+    assert called["extract_text"] is False
+
+
+@pytest.mark.asyncio
+async def test_upload_structural_strategy_on_txt_matches_recursive_output(
+    fake_vector_db,
+):
+    await document_tool.upload_document(
+        file_path=fixture_path("sample.txt"),
+        collection="structural_collection",
+        chunk_strategy="structural",
+    )
+    structural_chunks = [
+        doc.text for doc in fake_vector_db.stored["structural_collection"]
+    ]
+
+    await document_tool.upload_document(
+        file_path=fixture_path("sample.txt"),
+        collection="recursive_collection",
+        chunk_strategy="recursive",
+    )
+    recursive_chunks = [
+        doc.text for doc in fake_vector_db.stored["recursive_collection"]
+    ]
+
+    assert structural_chunks == recursive_chunks
