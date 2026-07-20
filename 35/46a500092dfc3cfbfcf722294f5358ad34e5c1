@@ -1,0 +1,24 @@
+docs/document-upload-tool/tasks.json
+  s_981e44704de90e::t_d9cb56e41bf343 12-13
+  s_981e44704de90e::t_520ee1b6003741 73-74
+docs/document-upload-tool/manifest.md
+  s_981e44704de90e::t_86eb2464214295 8
+docs/document-upload-tool/changelog.md
+  s_981e44704de90e::t_4eb9182368d75e 62-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "3546a500092dfc3cfbfcf722294f5358ad34e5c1",
+  "prompts": {},
+  "sessions": {
+    "s_981e44704de90e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2fc55879-7228-45d2-944e-3cb45b01dd49",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Gowtham Girithar Srirangasamy <gowthamgirithar@gmail.com>"
+    }
+  }
+}
