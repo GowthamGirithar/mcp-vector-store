@@ -33,7 +33,7 @@
 ### 3. Chunking implementation
 
 **A. Custom recursive splitter (chosen)**
-- Try splitting on `"\n\n"` (paragraphs), then `"\n"` (lines), then `". "` (sentences), then hard character-window fallback with overlap — same core idea as LangChain's `RecursiveCharacterTextSplitter`, implemented directly (~40 lines) with no new dependency.
+- Try splitting on `"\n\n"` (paragraphs), then `"\n"` (lines), then `" "` (words), then hard character-window fallback with overlap — same core idea as LangChain's `RecursiveCharacterTextSplitter`, implemented directly (~40 lines) with no new dependency.
 - Pros: zero new dependency, full control, easy to unit test.
 - Cons: reimplements a well-known algorithm instead of reusing a battle-tested library.
 
@@ -42,6 +42,27 @@
 - Cons: new dependency (even the standalone package pulls in its own version-compat surface) for a single function's worth of value; codebase currently has zero LangChain dependencies.
 
 **Chosen: A** — the algorithm is simple enough to own directly, and it avoids adding a new dependency family for one utility function.
+
+### 4. Pluggable chunk strategy (Extension, 2026-07-20)
+
+**A. Strategy dispatch function + new `structural_chunk` in `core/chunking.py` (chosen)**
+- Add `structural_chunk(pages, chunk_size, chunk_overlap) -> List[Tuple[Optional[int], str]]` next to `recursive_chunk` in `core/chunking.py`. It operates on the already-extracted `(page_number, text)` list (not raw file bytes), so it stays parser-agnostic:
+  - `.pdf` (page_number is not None): each page's text becomes exactly one output chunk, unchanged — `extract_text` already gives per-page granularity.
+  - `.md`/`.txt` (page_number is None, single input page): split the page text on Markdown heading lines (regex `^#{1,6}\s`) into sections; each section (heading line + its body, up to the next heading or EOF) becomes one chunk. A file with zero headings (including all `.txt` files) yields one section — the whole text — which is intentionally >chunk_size-agnostic, then handed to `recursive_chunk` as the fallback (see open question below) so `.txt` behavior is unchanged from today.
+  - Oversized sections are **not** further split (confirmed trade-off) — semantic coherence over the `chunk_size` contract.
+- `tools/document.py` gains a small dispatch: `_CHUNKERS = {"recursive": ..., "structural": ...}`, chosen by validated `chunk_strategy`, called once per document (structural needs the whole `pages` list, unlike `recursive_chunk` which is called per-page today) — this changes the per-page loop in `upload_document` to branch: `recursive` keeps the current per-page `recursive_chunk` call; `structural` calls a single `structural_chunk(pages, ...)` covering all pages at once.
+- Pros: keeps `recursive_chunk`'s existing contract and all T2 tests untouched; new function is independently unit-testable; no change to `extract_text`/`parsers.py`.
+- Cons: `upload_document`'s page-processing loop needs a strategy-shaped branch instead of one uniform call.
+
+**B. `ChunkStrategy` ABC with `RecursiveChunkStrategy`/`StructuralChunkStrategy` classes**
+- Pros: textbook Strategy pattern, easy to add a third strategy later purely by subclassing.
+- Cons: two strategies is not enough to justify a class hierarchy yet (same YAGNI reasoning as approach 1's rejected option B); a plain dict-of-functions dispatch gives the same swap-ability with far less ceremony.
+
+**Chosen: A** — small function + dispatch dict, consistent with the codebase's existing "plain functions" convention (see decision 1 above), no premature class hierarchy for two strategies.
+
+**Chunk strategy validation:** `validate_chunk_strategy(chunk_strategy: str) -> str` added to `utils/validation.py` alongside `validate_chunk_size`/`validate_chunk_overlap`, raising `ValidationError` if not in `{"recursive", "structural"}`.
+
+**Config:** `DocumentConfig.chunk_strategy: str = "recursive"`, loaded from `DOCUMENT_CHUNK_STRATEGY`, same override pattern as `chunk_size`/`chunk_overlap` (tool param wins, falls back to config default).
 
 ## Chosen Approach — Summary
 
@@ -85,6 +106,8 @@ Loaded from `DOCUMENT_CHUNK_SIZE`, `DOCUMENT_CHUNK_OVERLAP`, `DOCUMENT_MAX_FILE_
 
 ## Risks & Open Questions
 
+- **[Extension] Structural mode can exceed `chunk_size` for large sections** — accepted trade-off per spec; downstream embedding-model token limits are not enforced here (same character-length reasoning as the base feature's own open question below). If a section is large enough to exceed the embedding model's context window, `generate_embeddings` would surface that failure — out of scope to guard against in this extension.
+- **[Extension] `.txt` files see no behavioral change under `structural`** — since there's no structural signal to split on, `structural` degrades to `recursive_chunk` output for `.txt`. This is called out explicitly in the spec so it isn't mistaken for a bug.
 - **`pypdf` extraction quality on scanned/complex-layout PDFs** — out of scope per spec non-goals (no OCR); text-only PDFs are the target.
 - **Large PDFs (hundreds of pages) processed synchronously** — could make the tool call long-running; mitigated by `ctx` progress reporting so the client at least sees liveness, and by `max_file_size_mb` as a coarse guard. If this becomes a real problem later, the background-job approach (rejected in the spec interview) is the natural escalation path.
 - **Chunk size in characters vs. tokens** — using character-based windows (like the rest of the spec implies) is simpler but not token-precise; acceptable given `store_text`'s own `validate_text` also uses a character-length limit (100,000).

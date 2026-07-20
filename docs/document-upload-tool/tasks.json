@@ -61,6 +61,17 @@
       "status": "in_progress",
       "branch": null,
       "pr_url": null
+    },
+    {
+      "id": "T6",
+      "title": "chunk_strategy support (config + validation + structural_chunk + tool wiring)",
+      "description": "Combined task (by request, not split by layer): (1) Add chunk_strategy: str = 'recursive' to DocumentConfig (config/config.py), wired into Settings.from_env() reading DOCUMENT_CHUNK_STRATEGY (commented entry in .env.example). (2) Add validate_chunk_strategy(chunk_strategy) -> str to utils/validation.py, raising ValidationError for anything outside {'recursive', 'structural'}. (3) Implement structural_chunk(pages: List[Tuple[Optional[int], str]], chunk_size, chunk_overlap) -> List[Tuple[Optional[int], str]] in core/chunking.py, alongside recursive_chunk: multi-page input (PDF) passes each page through as one chunk unchanged even if longer than chunk_size; single-page input with no page_number (.md/.txt) splits on Markdown heading lines (regex ^#{1,6}\\s, multiline) into one whole chunk per section (no size-based re-splitting), falling back to recursive_chunk (wrapped as (None, piece)) when there are zero headings so .txt output is unchanged. (4) Add chunk_strategy: Optional[str] = None parameter to upload_document (tools/document.py), resolved against settings.document.chunk_strategy when None, validated via validate_chunk_strategy before any parsing, branching the chunking step ('recursive' keeps the existing per-page loop; 'structural' calls structural_chunk once for the whole document). Update README.md to document chunk_strategy. See docs/document-upload-tool/tasks.md T6 for full test list and acceptance criteria.",
+      "depends_on": [
+        "T5"
+      ],
+      "status": "pending",
+      "branch": null,
+      "pr_url": null
     }
   ]
 }

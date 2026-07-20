@@ -5,6 +5,8 @@
 
 The server currently exposes two MCP tools: `store_text` (single-text embedding + storage) and `similarity_search`. There is no way to ingest a whole document (e.g. a multi-page PDF) — a caller would have to manually extract, chunk, and call `store_text` once per chunk themselves. This feature adds a dedicated `upload_document` tool that takes a server-local file path, extracts its text, chunks it, embeds each chunk, and stores all chunks in the vector DB with metadata that makes them easy to find and trace back to the source document later (e.g. filter search results by `document_id`, `source_filename`, or `page_number`).
 
+**Extension (2026-07-20):** `upload_document` shipped (T1-T5) with exactly one chunking strategy — `recursive_chunk` (paragraph → line → word → hard-window). Some documents (structured markdown, multi-page PDFs) chunk better when split along their own structure (headings, page breaks) instead of pure character windows, since it keeps each section's content together for retrieval. This extension adds a second, selectable chunking strategy without breaking existing callers.
+
 ## Goals & Constraints
 
 **Goals**
@@ -15,6 +17,9 @@ The server currently exposes two MCP tools: `store_text` (single-text embedding 
 - Report progress via the existing `ctx` (Context) pattern used in `store_text`/`similarity_search` (e.g. per page/chunk info logs).
 - Validate up front (extension, file existence, file size) and fail fast with the same `ValidationError` → `ValueError` / `VectorDBError` → `RuntimeError` conventions already used by the other tools.
 - Chunk size/overlap/max file size are configurable via a new `DocumentConfig` (env-var backed, like `VectorDBConfig`/`EmbeddingConfig`), overridable per-call via optional tool parameters.
+- **[Extension]** Support a second chunking strategy, `structural`, selectable via a new `chunk_strategy` tool parameter (`"recursive" | "structural"`), defaulting to `"recursive"` for full backward compatibility. Default is also configurable via `DocumentConfig.chunk_strategy` / `DOCUMENT_CHUNK_STRATEGY`.
+- **[Extension]** `structural` splits along each file type's native structure: `.md` splits on Markdown heading lines (`#`, `##`, `###`, ...) into one chunk per heading section; `.pdf` uses the existing per-page extraction as-is (one chunk per page); `.txt` has no structural signal, so it silently falls back to `recursive_chunk` behavior.
+- **[Extension]** A structural section is kept as a single chunk even if it exceeds `chunk_size` — structural mode prioritizes semantic coherence over the size contract enforced by `recursive_chunk`. This is a deliberate, documented trade-off.
 
 **Constraints**
 - Input is a **server-local file path** (not base64 upload) — the tool assumes the file already exists on disk where the server process runs.
@@ -84,4 +89,28 @@ GIVEN a ctx (Context) is available
 WHEN the document is being processed
 THEN the tool emits ctx.info/ctx.debug progress updates (e.g. "Processing page 3/10",
      "Embedding chunk 12/40") consistent with the logging style in store_text/similarity_search
+
+GIVEN chunk_strategy is not passed as a tool parameter
+WHEN upload_document is called
+THEN the value falls back to DocumentConfig.chunk_strategy (default "recursive"),
+     same fallback pattern as chunk_size/chunk_overlap
+
+GIVEN chunk_strategy="structural" and a .md file with heading sections
+WHEN upload_document is called
+THEN the tool produces one chunk per heading section (content between one heading
+     and the next, or end of file), regardless of chunk_size
+
+GIVEN chunk_strategy="structural" and a .pdf file
+WHEN upload_document is called
+THEN the tool produces one chunk per page, regardless of chunk_size (page_number
+     metadata set as usual)
+
+GIVEN chunk_strategy="structural" and a .txt file (no structural signal)
+WHEN upload_document is called
+THEN the tool falls back to the same output recursive_chunk would produce
+
+GIVEN chunk_strategy is set to a value other than "recursive" or "structural"
+WHEN upload_document is called
+THEN the tool raises a ValidationError-derived ValueError before any parsing,
+     naming the invalid value and the allowed set
 ```
