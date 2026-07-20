@@ -1,5 +1,6 @@
 """Input validation utilities for MCP Vector DB Server."""
 
+import os
 import re
 from typing import Dict, Any, Optional
 from .exceptions import ValidationError
@@ -49,7 +50,12 @@ def validate_metadata(metadata: Optional[Dict[str, Any]]) -> Optional[Dict[str, 
         raise ValidationError("Metadata must be a dictionary")
     
     # Check for reserved keys
-    reserved_keys = {"id", "embedding", "document", "text"}
+    reserved_keys = {
+        "id", "embedding", "document", "text",
+        # Reserved for document-upload-tool auto-generated metadata fields.
+        "document_id", "source_filename", "file_type",
+        "page_number", "chunk_index", "total_chunks", "uploaded_at",
+    }
     for key in metadata.keys():
         if key in reserved_keys:
             raise ValidationError(f"Metadata key '{key}' is reserved")
@@ -152,6 +158,99 @@ def validate_document_id(doc_id: str) -> str:
         raise ValidationError("Document ID cannot exceed 255 characters")
     
     return doc_id.strip()
+
+
+def validate_file_path(path: str, allowed_extensions: set, max_file_size_mb: float) -> str:
+    """Validate a file path for document upload.
+
+    Args:
+        path: The file path to validate
+        allowed_extensions: Set of allowed file extensions (e.g. {".txt", ".pdf"})
+        max_file_size_mb: Maximum allowed file size in megabytes
+
+    Returns:
+        The validated file path
+
+    Raises:
+        ValidationError: If the file path is invalid
+    """
+    if not isinstance(path, str):
+        raise ValidationError("File path must be a string")
+
+    if not path.strip():
+        raise ValidationError("File path cannot be empty")
+
+    stripped_path = path.strip()
+
+    if not os.path.isfile(stripped_path):
+        raise ValidationError(f"File not found: {stripped_path}")
+
+    if not os.access(stripped_path, os.R_OK):
+        raise ValidationError(f"File is not readable: {stripped_path}")
+
+    _, extension = os.path.splitext(stripped_path)
+    extension = extension.lower()
+    if extension not in allowed_extensions:
+        allowed_str = ", ".join(sorted(allowed_extensions))
+        raise ValidationError(
+            f"Unsupported file extension '{extension}'. Allowed: {allowed_str}"
+        )
+
+    file_size_mb = os.path.getsize(stripped_path) / (1024 * 1024)
+    if file_size_mb > max_file_size_mb:
+        raise ValidationError(
+            f"File size ({file_size_mb:.1f} MB) exceeds maximum ({max_file_size_mb:.1f} MB)"
+        )
+
+    return stripped_path
+
+
+def validate_chunk_size(chunk_size: int) -> int:
+    """Validate the chunk size used for document splitting.
+
+    Args:
+        chunk_size: The chunk size to validate
+
+    Returns:
+        The validated chunk size
+
+    Raises:
+        ValidationError: If chunk size is invalid
+    """
+    if not isinstance(chunk_size, int) or isinstance(chunk_size, bool):
+        raise ValidationError("Chunk size must be an integer")
+
+    if chunk_size <= 0:
+        raise ValidationError("Chunk size must be positive")
+
+    return chunk_size
+
+
+def validate_chunk_overlap(chunk_overlap: int, chunk_size: int) -> int:
+    """Validate the chunk overlap used for document splitting.
+
+    Args:
+        chunk_overlap: The chunk overlap to validate
+        chunk_size: The chunk size the overlap must be smaller than
+
+    Returns:
+        The validated chunk overlap
+
+    Raises:
+        ValidationError: If chunk overlap is invalid
+    """
+    if not isinstance(chunk_overlap, int) or isinstance(chunk_overlap, bool):
+        raise ValidationError("Chunk overlap must be an integer")
+
+    if chunk_overlap < 0:
+        raise ValidationError("Chunk overlap cannot be negative")
+
+    if chunk_overlap >= chunk_size:
+        raise ValidationError(
+            f"Chunk overlap ({chunk_overlap}) must be less than chunk size ({chunk_size})"
+        )
+
+    return chunk_overlap
 
 
 def _is_json_serializable(value: Any) -> bool:
