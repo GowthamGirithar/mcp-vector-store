@@ -17,11 +17,29 @@ Summary: Confirmed 5-task breakdown — T1 DocumentConfig, T2 recursive_chunk, T
 
 ## [2026-07-20] — T1 implemented: DocumentConfig
 Model: claude-sonnet-5
-Branch: document-upload-tool/t1-document-config
+Branch: document-upload-tool/t1-document-config (pushed, no PR — see note below)
 Summary: Added `DocumentConfig` pydantic model (chunk_size=500, chunk_overlap=50, max_file_size_mb=20.0) to `src/mcp_vectordb/config/config.py`, wired into `Settings` and `Settings.from_env()`, reading `DOCUMENT_CHUNK_SIZE`, `DOCUMENT_CHUNK_OVERLAP`, `DOCUMENT_MAX_FILE_SIZE_MB` env vars with the same defaults as fallback. Added the corresponding commented entries to `.env.example`.
-Test-setup decisions (relevant for T2-T5): this repo had no `tests/` directory and no pytest config at all, so this task created both from scratch:
-- `tests/` lives at repo root (sibling to `src/`), with `tests/conftest.py` and `tests/test_config.py`.
-- Added root-level `pytest.ini` with `pythonpath = src` and `testpaths = tests`. This puts `src/` on `sys.path` for test collection, so tests import as `from mcp_vectordb.config.config import ...` (no `src.` prefix needed), even though `main.py` itself imports via `from src.mcp_vectordb...`. Follow this same import style (`from mcp_vectordb...`, not `from src.mcp_vectordb...`) in new test files.
-- `get_settings()` caches a module-level singleton in `mcp_vectordb.config.config._settings`. Added an autouse fixture in `tests/conftest.py` (`reset_settings_cache`) that resets `config_module._settings = None` before and after every test, so `monkeypatch.setenv(...)` changes are actually picked up by `get_settings()` in later tests. This fixture is autouse and repo-wide, so T2-T5 do not need to redeclare it — just reuse `tests/conftest.py`.
-- No virtualenv existed in the repo; created a local `.venv` (already gitignored) and installed `requirements.txt` + `requirements-dev.txt` into it to run `pytest`. `pytest-asyncio` was not needed for this task (no async code under test).
-- The repo's `docs/document-upload-tool/` directory (spec.md, design.md, manifest.md, tasks.md, tasks.json, changelog.md) existed only as untracked files on `main` before this branch — committed them here so they're available on `main`/this stacked branch set going forward.
+Test-setup decisions (relevant for T2-T5): this repo had no `tests/` directory and no pytest config at all, so this task created both from scratch — root `pytest.ini` (`pythonpath = src`, `testpaths = tests`, so tests import as `from mcp_vectordb...`), `tests/conftest.py` with an autouse `reset_settings_cache` fixture (resets the `get_settings()` singleton between tests), and a local gitignored `.venv`.
+Note: `gh pr create` failed — the authenticated `gh` account has no access to this repo (different account than the repo owner). Branch is implemented, tested, committed, and pushed; PR creation deferred (decided to skip PR creation for the whole feature for now and open PRs manually later).
+
+## [2026-07-20] — T2 implemented: Recursive chunking
+Model: claude-sonnet-5
+Branch: document-upload-tool/t2-recursive-chunking (pushed, no PR)
+Summary: Implemented `recursive_chunk(text, chunk_size, chunk_overlap)` in `src/mcp_vectordb/core/chunking.py`. Splits on `\n\n` (paragraphs), then `\n` (lines), then `". "` (sentences), then falls back to a hard character window with overlap for any piece still too long. Empty string input returns `[]`. Raises `ValueError` for `chunk_size <= 0`, `chunk_overlap < 0`, or `chunk_overlap >= chunk_size`. Hard-window fallback advances by `chunk_size - chunk_overlap` characters per step (always ≥1 given validated inputs), guaranteeing termination even on pathological no-separator input. Overlap correctness verified by asserting the tail of chunk[i] appears at the start of chunk[i+1]. Separator-split pieces are greedily re-merged up to chunk_size, so a chunk may contain multiple small paragraphs (not strictly one-paragraph-per-chunk) — relevant for T5's assumptions about chunk boundaries. No new dependency (pure stdlib).
+Test setup: cut from `main` (T1's `tests/`/`pytest.ini` not yet merged there), so recreated the same `pytest.ini` convention independently. No `conftest.py` needed (pure function, no fixtures).
+
+## [2026-07-20] — T3 implemented: Text extraction (PDF/TXT/MD)
+Model: claude-sonnet-5
+Branch: document-upload-tool/t3-text-extraction (pushed, no PR)
+Summary: Implemented `extract_text(file_path) -> List[Tuple[Optional[int], str]]` in `src/mcp_vectordb/core/parsers.py`. Dispatches on lowercased extension: `.pdf` returns one `(page_number, text)` tuple per page (1-indexed) via `pypdf.PdfReader`; `.txt`/`.md` return a single `(None, full_text)` tuple. Unsupported extensions raise `UnsupportedFileTypeError` (a `ValueError` subclass) before the file is opened. Corrupt/truncated PDFs raise `DocumentParseError` (wraps `pypdf.errors.PdfReadError`/`PdfStreamError`) — **T5 should catch `DocumentParseError` and map it to `RuntimeError`**, and catch `UnsupportedFileTypeError` separately since it's intentionally a distinct `ValueError` subtype. Added `pypdf>=4.0.0` to `requirements.txt`. Test fixtures added under `tests/fixtures/`: `sample.txt`, `sample.md`, `sample.docx` (empty, dispatch-failure test only), `sample.pdf` (valid 3-page PDF with real extractable text, generated via `reportlab`, dev-only, not added to requirements-dev.txt), `corrupt.pdf` (truncated copy of `sample.pdf`).
+Test setup: cut from `main` (same as T1/T2, no `tests/`/`pytest.ini` there yet), recreated the same convention independently.
+
+## [2026-07-20] — T4 implemented: Validators
+Model: claude-sonnet-5
+Branch: document-upload-tool/t4-validators (pushed, no PR)
+Summary: Added `validate_file_path(path, allowed_extensions, max_file_size_mb)`, `validate_chunk_size(chunk_size)`, and `validate_chunk_overlap(chunk_overlap, chunk_size)` to `src/mcp_vectordb/utils/validation.py`, all raising `ValidationError` with a specific message per failure mode. Extended `validate_metadata`'s existing `reserved_keys` set directly (no sibling function) to also reject `document_id`, `source_filename`, `file_type`, `page_number`, `chunk_index`, `total_chunks`, `uploaded_at` — confirmed this doesn't affect `store_text` in `tools/storage.py`, which never uses those key names.
+Test setup: `.venv` and pytest were already present from prior task setup in the working tree; only needed to add `pytest.ini` (not yet tracked on `main`) and `tests/test_validation.py`.
+
+## [2026-07-20] — Orchestration note: docs/ ownership
+Trigger: T1, T2, and T3 each independently recreated/diverged `docs/document-upload-tool/changelog.md` on their own branches, because the folder is untracked on `main` and disappears from the working tree whenever a branch that *did* commit it is checked out away from (git only keeps files present in the target branch's tree). This produced three divergent copies of this changelog across branches.
+Resolution: the orchestrator (not sub-agents) now owns `docs/document-upload-tool/` exclusively. This file has been manually reconciled into one canonical history. T4/T5 sub-agents are instructed not to touch `docs/` at all — the orchestrator appends their changelog entries after each task completes, based on the sub-agent's returned summary.
