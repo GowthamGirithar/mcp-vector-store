@@ -8,3 +8,4 @@ numpy>=1.24.0 # we did pip install "numpy<2" for pytorch to sync
 asyncio-mqtt>=0.11.0
 python-dotenv>=1.0.0
 typing-extensions>=4.5.0
+pypdf>=4.0.0
