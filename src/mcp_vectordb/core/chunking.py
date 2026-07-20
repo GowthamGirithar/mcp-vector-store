@@ -2,7 +2,7 @@
 
 The chunker tries a sequence of increasingly granular separators to split
 text into pieces no longer than ``chunk_size`` characters, preserving
-natural document structure (paragraphs, then lines, then sentences) as
+natural document structure (paragraphs, then lines, then words) as
 much as possible. Any piece that is still too long after all separator
 based splits falls back to a hard character window with overlap, which
 is guaranteed to make progress and therefore always terminates.
@@ -15,17 +15,17 @@ from typing import List
 
 _PARAGRAPH_SEP = "\n\n"
 _LINE_SEP = "\n"
-_SENTENCE_SEP = ". "
+_WORD_SEP = " "
 
 
 def recursive_chunk(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
     """Split ``text`` into chunks of at most ``chunk_size`` characters.
 
     Splitting is attempted, in order, on paragraph breaks (``"\\n\\n"``),
-    line breaks (``"\\n"``), and sentence breaks (``". "``). Any resulting
-    piece still longer than ``chunk_size`` is split using a hard character
-    window with ``chunk_overlap`` characters of overlap between
-    consecutive windows.
+    line breaks (``"\\n"``), and word breaks (``" "``). Any resulting
+    piece still longer than ``chunk_size`` (i.e. a single word) is split
+    using a hard character window with ``chunk_overlap`` characters of
+    overlap between consecutive windows.
 
     Args:
         text: The input text to chunk.
@@ -59,7 +59,7 @@ def recursive_chunk(text: str, chunk_size: int, chunk_overlap: int) -> List[str]
 
 
 def _split_recursive(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
-    """Recursively split ``text`` on paragraph/line/sentence separators."""
+    """Recursively split ``text`` on paragraph/line/word separators."""
     if text == "":
         return []
 
@@ -75,15 +75,15 @@ def _split_by_line(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
     if len(text) <= chunk_size:
         return [text] if text != "" else []
     return _split_by_separator(
-        text, chunk_size, chunk_overlap, _LINE_SEP, _split_by_sentence
+        text, chunk_size, chunk_overlap, _LINE_SEP, _split_by_word
     )
 
 
-def _split_by_sentence(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
+def _split_by_word(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
     if len(text) <= chunk_size:
         return [text] if text != "" else []
     return _split_by_separator(
-        text, chunk_size, chunk_overlap, _SENTENCE_SEP, _hard_window_split
+        text, chunk_size, chunk_overlap, _WORD_SEP, _hard_window_split
     )
 
 
