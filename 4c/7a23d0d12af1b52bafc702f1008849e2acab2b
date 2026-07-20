@@ -1,0 +1,37 @@
+docs/document-upload-tool/tasks.json
+  s_981e44704de90e::t_2ba23eb97639a6 67-68,70
+  s_981e44704de90e::t_9f733b2965424d 64-66,69,71-74
+docs/document-upload-tool/spec.md
+  s_981e44704de90e::t_ada9c476ab9ff1 8-9
+  s_981e44704de90e::t_adba986584175b 92-115
+  s_981e44704de90e::t_e7b48e2959d742 20-22
+docs/document-upload-tool/design.md
+  s_981e44704de90e::t_8c16dd12fc9061 46-66
+  s_981e44704de90e::t_13e28b3a62c508 109-110
+docs/document-upload-tool/changelog.md
+  s_981e44704de90e::t_c38432d915b7bf 52-56
+  s_981e44704de90e::t_d68cc2501b8ce0 48,57-61
+  s_981e44704de90e::t_419cc09d8b12dd 46-47
+  s_981e44704de90e::t_225ee93a230b53 49-51
+docs/document-upload-tool/tasks.md
+  s_981e44704de90e::t_2e23d6fc19c3a0 15-17,19-20,22
+  s_981e44704de90e::t_ea7f37ea900e42 137,139-140,148-150,153-163,166-168,171
+  s_981e44704de90e::t_5a1090de39ac24 18,21
+  s_981e44704de90e::t_b52db81f91a9f6 134-136,138,141-147,151-152,164-165,169-170,172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "4c7a23d0d12af1b52bafc702f1008849e2acab2b",
+  "prompts": {},
+  "sessions": {
+    "s_981e44704de90e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2fc55879-7228-45d2-944e-3cb45b01dd49",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Gowtham Girithar Srirangasamy <gowthamgirithar@gmail.com>"
+    }
+  }
+}
