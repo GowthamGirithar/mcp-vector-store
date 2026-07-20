@@ -1,0 +1,21 @@
+src/mcp_vectordb/core/chunking.py
+  s_e81f37713a2e5a::t_ec27e5c7e779b1 5,18,25-28,62,78,82,86
+tests/test_chunking.py
+  s_e81f37713a2e5a::t_b4e0067e5c98dd 6-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.14",
+  "base_commit_sha": "8846906cd773bcb93af1f76c85d69dc965ac79b4",
+  "prompts": {},
+  "sessions": {
+    "s_e81f37713a2e5a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "87ce5f48-215d-4d86-82d4-90b46ab795b9",
+        "model": "unknown"
+      },
+      "human_author": "Gowtham Girithar Srirangasamy <gowthamgirithar@gmail.com>"
+    }
+  }
+}
