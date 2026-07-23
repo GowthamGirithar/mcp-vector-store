@@ -1,0 +1,153 @@
+README.md
+  s_c2aadd99cf4134::t_ffa6fbadfe2181 92,101
+  s_c9eafbb35763d8::t_758357abba0f4b 102
+src/mcp_vectordb/tools/storage.py
+  s_c9eafbb35763d8::t_a69dec19e06825 163-165,171-176
+  s_c9eafbb35763d8::t_c36db9ec2098c1 116-119
+  s_c2aadd99cf4134::t_474343d12691e7 156
+  s_c2aadd99cf4134::t_9dd41c5b065dc8 188
+  s_c2aadd99cf4134::t_112452164d7c2b 14
+  s_c2aadd99cf4134::t_9eb2e8bebb3c21 148-149
+  s_c2aadd99cf4134::t_789b7a8899f55a 150-151
+  s_c2aadd99cf4134::t_9dc91767cb26e0 197
+  s_c9eafbb35763d8::t_896eec50140738 24-32
+  s_c9eafbb35763d8::t_197e121c56dad5 161-162,166-170
+  s_c9eafbb35763d8::t_9ec9800ecdff97 137
+  s_c2aadd99cf4134::t_ebc63d43d7da5a 207
+  s_c2aadd99cf4134::t_8682fac53a2773 42
+  s_c2aadd99cf4134::t_7b6ee36b4f2a0a 120-136,138-147,152-155,157-160,177-187,189-196,198-206,208-289
+  s_c2aadd99cf4134::t_720ff75eca1c47 3-5,11,13,15-21
+tests/test_hybrid_search.py
+  s_07ec46a5eef4a3::t_ce3142317e749e 246-258
+  s_dc25421e9b72b2::t_cb40d238f13c2b 206,208,212-218,223
+  s_07ec46a5eef4a3::t_dc499827125f8e 1-27,29-205,207,209-211,219-222,224-245,259-269
+  s_07ec46a5eef4a3::t_03895b611566b0 28
+src/mcp_vectordb/core/bm25.py
+  s_07ec46a5eef4a3::t_72c80c8b0554ea 1-91
+.env.example
+  s_c2aadd99cf4134::t_ca646e30e389e6 25-26
+  s_dc25421e9b72b2::t_9682e1de0ec495 22-24,27-30
+src/mcp_vectordb/adapters/base.py
+  s_07ec46a5eef4a3::t_e94b76f524bd32 280-285
+  s_07ec46a5eef4a3::t_aeae9ea5a3c0a6 219,221-233
+src/mcp_vectordb/core/chunking.py
+  s_c2aadd99cf4134::t_e94aa358bf3fc9 34-40,42
+  s_c2aadd99cf4134::t_c8137f10af301c 136-137
+src/mcp_vectordb/config/config.py
+  s_c9eafbb35763d8::t_c36db9ec2098c1 110-111
+  s_c2aadd99cf4134::t_85936bc3c2c181 5,8-9
+  s_dc25421e9b72b2::t_72b0ad50628926 52-65,73
+  s_c2aadd99cf4134::t_008193db79bdf9 42-50
+  s_dc25421e9b72b2::t_bcb16a7fae9bdf 102-109,112
+  s_c9eafbb35763d8::t_bfac8507e097b0 10,51
+src/mcp_vectordb/core/fusion.py
+  s_07ec46a5eef4a3::t_2f6295c69e57fc 1,3,6-11,13-15,18-21,24,26-29,31-34,36
+src/mcp_vectordb/core/parsers.py
+  s_c2aadd99cf4134::t_892ad0d627c538 32-43,58-59,63,65,70,73
+src/mcp_vectordb/tools/__init__.py
+  s_c2aadd99cf4134::t_7e7089373ba5d7 5
+src/mcp_vectordb/core/reranker.py
+  s_07ec46a5eef4a3::t_176c5192ab7a59 1-49
+src/mcp_vectordb/adapters/chroma.py
+  s_5d5697a167e463::t_c73c05f78b7926 292-293,300-302
+  s_a59243fa5747ae::t_dedc7190e87335 41-54
+  s_b266719866a2c4::t_c671605314438c 132-133
+  s_a59243fa5747ae::t_ba965c9e1b5453 279-281
+  s_07ec46a5eef4a3::t_0874629b7e3add 346-349,352-355
+  s_5d5697a167e463::t_1cc1abbb817b1a 20-40
+  s_07ec46a5eef4a3::t_31f100f85ad15e 427-469
+tests/test_store_document.py
+  s_c2aadd99cf4134::t_ed0984707a79fc 1
+  s_c2aadd99cf4134::t_4c607da5cea929 191-194,197-198
+  s_c2aadd99cf4134::t_70f4fdfaa9b4a5 8,75,77,83,111,125,140,152,158,167,174,178,184,187,210,228,241,257,260,272,281
+src/mcp_vectordb/tools/search.py
+  s_a59243fa5747ae::t_b169b399d9fef0 177-180
+  s_07ec46a5eef4a3::t_9f3129e9bc2571 269
+  s_dc25421e9b72b2::t_76f5eb0b9da743 283-284,294-296,300-310
+  s_e9c524717b653c::t_2b30501a738da1 52,56,67
+  s_e9c524717b653c::t_c95b59db86bbf5 91-94
+  s_07ec46a5eef4a3::t_6eb411e408fdf4 19-31
+  s_a59243fa5747ae::t_bd7a03992f81dc 116
+  s_07ec46a5eef4a3::t_134597c4cd1ef1 181-187,189,191-199,204-207,210,213-222,224,230-237,241-268,270-282,285-293,297-299,311-368
+  s_dc25421e9b72b2::t_eeb0af3b08832c 47,60-61,65-66,69,77-82,87
+  s_dc25421e9b72b2::t_ee9f11a76693f6 76,223
+  s_e9c524717b653c::t_f1fd6cfae57ede 147-148
+  s_dc25421e9b72b2::t_4580a8b090058c 188,190,200-203,208-209,211-212,225-229,238-240
+  s_dc25421e9b72b2::t_7e92d32bf6bd55 8
+  s_07ec46a5eef4a3::t_6ba03897b26bc0 3,11-18,32-40
+tests/test_metadata_filters.py
+  s_a59243fa5747ae::t_4e541447c2baf2 1-3,5-10,12-63
+  s_a59243fa5747ae::t_424fab3efc5724 4,11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "3f55e593af933ce88e756f2d531e620f1853fe03",
+  "prompts": {},
+  "sessions": {
+    "s_07ec46a5eef4a3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c2aa2028-2fc1-4e38-94e9-d73d866d9ceb",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_5d5697a167e463": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4e11ff60-eeda-4fbf-bd54-b277e8954b5b",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_a59243fa5747ae": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "22b01aa5-763e-4a6e-a3ad-cb862629aa58",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_b266719866a2c4": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5cae1eda-a02f-4f0f-be92-efcff39c6ceb",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_c2aadd99cf4134": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "223b300f-e926-4284-a7b2-7633c8ce7163",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_c9eafbb35763d8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dbfe28df-f8ee-450c-8d76-63d368399604",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Gowtham Girithar Srirangasamy <gowthamgirithar@gmail.com>"
+    },
+    "s_dc25421e9b72b2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c12ddac6-b2c3-4a35-b009-e6d8965d05c9",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    },
+    "s_e9c524717b653c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "47f0e65e-ced6-4320-87d6-f8a70a6a754b",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": null
+    }
+  }
+}
