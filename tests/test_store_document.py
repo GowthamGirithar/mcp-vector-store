@@ -199,17 +199,16 @@ async def test_upload_document_id_is_auto_generated_and_shared_across_chunks(
 
 
 # ---------------------------------------------------------------------------
-# chunk_strategy (T6)
+# auto-chunking pipeline + breadcrumb metadata
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_upload_structural_strategy_on_markdown_produces_section_chunks(
+async def test_upload_markdown_with_headings_produces_section_chunks(
     fake_vector_db,
 ):
     await storage_tool.store_document(
         file_path=fixture_path("sample_sections.md"),
-        chunk_strategy="structural",
     )
 
     stored = fake_vector_db.stored["documents"]
@@ -218,17 +217,14 @@ async def test_upload_structural_strategy_on_markdown_produces_section_chunks(
     assert stored[1].text.startswith("## Background")
     assert stored[2].text.startswith("## Details")
     for doc in stored:
-        assert doc.metadata["page_number"] is None
+        assert "page_number" not in doc.metadata
 
 
 @pytest.mark.asyncio
-async def test_upload_structural_strategy_on_multi_page_pdf_produces_one_chunk_per_page(
+async def test_upload_multi_page_pdf_produces_one_chunk_per_page_when_pages_fit(
     fake_vector_db,
 ):
-    await storage_tool.store_document(
-        file_path=fixture_path("sample.pdf"),
-        chunk_strategy="structural",
-    )
+    await storage_tool.store_document(file_path=fixture_path("sample.pdf"))
 
     stored = fake_vector_db.stored["documents"]
     assert len(stored) == 3
@@ -237,54 +233,38 @@ async def test_upload_structural_strategy_on_multi_page_pdf_produces_one_chunk_p
 
 
 @pytest.mark.asyncio
-async def test_upload_omitted_chunk_strategy_defaults_to_recursive(fake_vector_db):
-    await storage_tool.store_document(file_path=fixture_path("sample.txt"))
-
-    stored = fake_vector_db.stored["documents"]
-    assert len(stored) > 0
-
-
-@pytest.mark.asyncio
-async def test_upload_invalid_chunk_strategy_raises_value_error_before_parsing(
-    monkeypatch,
-):
-    called = {"extract_text": False}
-
-    def fake_extract_text(*args, **kwargs):
-        called["extract_text"] = True
-        raise AssertionError("extract_text should not be called")
-
-    monkeypatch.setattr(storage_tool, "extract_text", fake_extract_text)
-
-    with pytest.raises(ValueError):
-        await storage_tool.store_document(
-            file_path=fixture_path("sample.txt"),
-            chunk_strategy="bogus",
-        )
-
-    assert called["extract_text"] is False
-
-
-@pytest.mark.asyncio
-async def test_upload_structural_strategy_on_txt_matches_recursive_output(
+async def test_upload_markdown_chunk_breadcrumb_includes_filename_and_heading_path(
     fake_vector_db,
 ):
     await storage_tool.store_document(
-        file_path=fixture_path("sample.txt"),
-        collection="structural_collection",
-        chunk_strategy="structural",
+        file_path=fixture_path("sample_sections.md"),
     )
-    structural_chunks = [
-        doc.text for doc in fake_vector_db.stored["structural_collection"]
-    ]
 
-    await storage_tool.store_document(
-        file_path=fixture_path("sample.txt"),
-        collection="recursive_collection",
-        chunk_strategy="recursive",
+    stored = fake_vector_db.stored["documents"]
+    assert stored[0].metadata["breadcrumb"] == "sample_sections.md > Introduction"
+    assert (
+        stored[1].metadata["breadcrumb"]
+        == "sample_sections.md > Introduction > Background"
     )
-    recursive_chunks = [
-        doc.text for doc in fake_vector_db.stored["recursive_collection"]
-    ]
 
-    assert structural_chunks == recursive_chunks
+
+@pytest.mark.asyncio
+async def test_upload_pdf_chunk_breadcrumb_includes_filename_and_page(
+    fake_vector_db,
+):
+    await storage_tool.store_document(file_path=fixture_path("sample.pdf"))
+
+    stored = fake_vector_db.stored["documents"]
+    for doc in stored:
+        assert doc.metadata["breadcrumb"] == (
+            f"sample.pdf > page {doc.metadata['page_number']}"
+        )
+
+
+@pytest.mark.asyncio
+async def test_upload_reserved_breadcrumb_metadata_key_raises_value_error():
+    with pytest.raises(ValueError):
+        await storage_tool.store_document(
+            file_path=fixture_path("sample.txt"),
+            metadata={"breadcrumb": "caller-supplied"},
+        )

@@ -8,7 +8,6 @@ from mcp_vectordb.utils.exceptions import ValidationError
 from mcp_vectordb.utils.validation import (
     validate_chunk_overlap,
     validate_chunk_size,
-    validate_chunk_strategy,
     validate_file_path,
     validate_metadata,
     validate_text,
@@ -179,21 +178,3 @@ def test_validate_text_rejects_empty_string():
 
 def test_validate_text_happy_path():
     assert validate_text("  hello  ") == "hello"
-
-
-# ---------------------------------------------------------------------------
-# validate_chunk_strategy
-# ---------------------------------------------------------------------------
-
-
-def test_validate_chunk_strategy_accepts_recursive():
-    assert validate_chunk_strategy("recursive") == "recursive"
-
-
-def test_validate_chunk_strategy_accepts_structural():
-    assert validate_chunk_strategy("structural") == "structural"
-
-
-def test_validate_chunk_strategy_rejects_unknown_value():
-    with pytest.raises(ValidationError, match="bogus"):
-        validate_chunk_strategy("bogus")

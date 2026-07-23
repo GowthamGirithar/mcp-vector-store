@@ -1,6 +1,6 @@
 import pytest
 
-from mcp_vectordb.core.chunking import recursive_chunk, structural_chunk
+from mcp_vectordb.core.chunking import recursive_chunk, chunk_data
 
 
 SHORT_TEXT = "This is a short piece of text."
@@ -125,11 +125,26 @@ def test_recursive_chunk(case):
 
 
 # ---------------------------------------------------------------------------
-# structural_chunk
+# chunk_data
 # ---------------------------------------------------------------------------
+#
+# chunk_data implements the unified auto-chunking pipeline, mirroring
+# five explicit stages:
+#   1/2. Decide header-based splitting (Markdown with headings) vs
+#        layout-aware extraction (per-page: PDFs, headingless text), and
+#        split into sections accordingly.
+#   3/4. Any section whose approximate size exceeds chunk_size is
+#        recursively split with 10% overlap; smaller sections are kept
+#        whole.
+#   5. Every returned chunk carries its own breadcrumb metadata
+#      (source_filename > heading_path > page N).
+#
+# Each result is a Chunk(page_number, text, breadcrumb) namedtuple.
+
+FILENAME = "sample.md"
 
 
-def test_structural_chunk_markdown_with_headings_produces_one_chunk_per_section():
+def test_chunk_document_markdown_with_headings_produces_one_chunk_per_section():
     text = (
         "## Section One\n"
         "First section body.\n"
@@ -139,51 +154,86 @@ def test_structural_chunk_markdown_with_headings_produces_one_chunk_per_section(
         "Third section body.\n"
     )
 
-    chunks = structural_chunk([(None, text)], chunk_size=1000, chunk_overlap=50)
+    chunks = chunk_data([(None, text)], chunk_size=1000, source_filename=FILENAME)
 
     assert len(chunks) == 3
-    assert all(page_number is None for page_number, _ in chunks)
-    assert chunks[0][1].startswith("## Section One")
-    assert chunks[1][1].startswith("## Section Two")
-    assert chunks[2][1].startswith("## Section Three")
+    assert [c.page_number for c in chunks] == [None, None, None]
+    assert chunks[0].text.startswith("## Section One")
+    assert chunks[1].text.startswith("## Section Two")
+    assert chunks[2].text.startswith("## Section Three")
 
 
-def test_structural_chunk_markdown_with_no_headings_matches_recursive_chunk_output():
+def test_chunk_document_nested_headings_produce_hierarchical_breadcrumb():
+    text = (
+        "# Intro\n"
+        "Intro body.\n"
+        "## Background\n"
+        "Background body.\n"
+        "# Conclusion\n"
+        "Conclusion body.\n"
+    )
+
+    chunks = chunk_data([(None, text)], chunk_size=1000, source_filename=FILENAME)
+
+    breadcrumbs = [c.breadcrumb for c in chunks]
+    assert breadcrumbs == [
+        f"{FILENAME} > Intro",
+        f"{FILENAME} > Intro > Background",
+        f"{FILENAME} > Conclusion",
+    ]
+
+
+def test_chunk_document_markdown_with_no_headings_is_kept_as_single_section():
     text = "\n\n".join([PARAGRAPH_A, PARAGRAPH_B, PARAGRAPH_C])
 
-    chunks = structural_chunk(
-        [(None, text)], chunk_size=PARAGRAPH_CHUNK_SIZE, chunk_overlap=10
-    )
-    expected = recursive_chunk(text, PARAGRAPH_CHUNK_SIZE, chunk_overlap=10)
+    chunks = chunk_data([(None, text)], chunk_size=1000, source_filename=FILENAME)
 
-    assert chunks == [(None, piece) for piece in expected]
+    assert chunks == [(None, text, FILENAME)]
 
 
-def test_structural_chunk_multi_page_input_passes_each_page_through_unchanged():
+def test_chunk_document_oversized_section_is_recursively_split_with_ten_percent_overlap():
+    heading = "## Only Section\n"
+    body = " ".join(["word"] * 400)
+    text = heading + body
+
+    chunks = chunk_data([(None, text)], chunk_size=50, source_filename=FILENAME)
+
+    assert len(chunks) > 1
+    assert all(c.page_number is None for c in chunks)
+    assert all(c.breadcrumb == f"{FILENAME} > Only Section" for c in chunks)
+    expected_pieces = recursive_chunk(text, chunk_size=50, chunk_overlap=5)
+    assert [c.text for c in chunks] == expected_pieces
+
+
+def test_chunk_document_multi_page_input_treats_each_page_as_a_section():
     pages = [
         (1, "Page one content, short."),
-        (2, "Page two content, " + ("x" * 200)),
+        (2, "Page two content, short."),
         (3, "Page three content, short."),
     ]
 
-    chunks = structural_chunk(pages, chunk_size=50, chunk_overlap=5)
+    chunks = chunk_data(pages, chunk_size=1000, source_filename="sample.pdf")
 
-    assert chunks == pages
-
-
-def test_structural_chunk_single_oversized_section_kept_whole():
-    heading = "## Only Section\n"
-    body = "y" * 500
-    text = heading + body
-
-    chunks = structural_chunk([(None, text)], chunk_size=50, chunk_overlap=5)
-
-    assert chunks == [(None, text)]
+    assert chunks == [
+        (1, "Page one content, short.", "sample.pdf > page 1"),
+        (2, "Page two content, short.", "sample.pdf > page 2"),
+        (3, "Page three content, short.", "sample.pdf > page 3"),
+    ]
 
 
-def test_structural_chunk_empty_input_returns_empty_list():
-    assert structural_chunk([], chunk_size=100, chunk_overlap=10) == []
+def test_chunk_document_oversized_page_is_recursively_split():
+    pages = [(1, " ".join(["word"] * 400))]
+
+    chunks = chunk_data(pages, chunk_size=50, source_filename="sample.pdf")
+
+    assert len(chunks) > 1
+    assert all(c.page_number == 1 for c in chunks)
+    assert all(c.breadcrumb == "sample.pdf > page 1" for c in chunks)
 
 
-def test_structural_chunk_single_page_empty_text_returns_empty_list():
-    assert structural_chunk([(None, "")], chunk_size=100, chunk_overlap=10) == []
+def test_chunk_document_empty_input_returns_empty_list():
+    assert chunk_data([], chunk_size=100, source_filename=FILENAME) == []
+
+
+def test_chunk_document_single_page_empty_text_returns_empty_list():
+    assert chunk_data([(None, "")], chunk_size=100, source_filename=FILENAME) == []

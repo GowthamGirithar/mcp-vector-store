@@ -55,6 +55,7 @@ def validate_metadata(metadata: Optional[Dict[str, Any]]) -> Optional[Dict[str, 
         # Reserved for document-upload-tool auto-generated metadata fields.
         "document_id", "source_filename", "file_type",
         "page_number", "chunk_index", "total_chunks", "uploaded_at",
+        "breadcrumb",
     }
     for key in metadata.keys():
         if key in reserved_keys:
@@ -227,30 +228,6 @@ def validate_chunk_overlap(chunk_overlap: int, chunk_size: int) -> int:
         )
 
     return chunk_overlap
-
-
-_ALLOWED_CHUNK_STRATEGIES = {"recursive", "structural"}
-
-
-def validate_chunk_strategy(chunk_strategy: str) -> str:
-    """Validate the chunk strategy used for document splitting.
-
-    Args:
-        chunk_strategy: The chunk strategy to validate
-
-    Returns:
-        The validated chunk strategy
-
-    Raises:
-        ValidationError: If chunk strategy is not one of the allowed values
-    """
-    if chunk_strategy not in _ALLOWED_CHUNK_STRATEGIES:
-        allowed_str = ", ".join(sorted(_ALLOWED_CHUNK_STRATEGIES))
-        raise ValidationError(
-            f"Invalid chunk strategy '{chunk_strategy}'. Allowed: {allowed_str}"
-        )
-
-    return chunk_strategy
 
 
 def _is_json_serializable(value: Any) -> bool:

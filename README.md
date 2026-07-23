@@ -96,11 +96,14 @@ Upload a document (PDF, TXT, or MD), chunk it, and store the chunks with automat
 - `file_path` (required): Path to the document file to upload (`.pdf`, `.txt`, `.md`)
 - `collection` (optional): Collection name to store the chunks in (default: "documents")
 - `metadata` (optional): Custom metadata dictionary applied to every chunk
-- `chunk_strategy` (optional): Chunking strategy to use — `"recursive"` (default; separator-based splitting with a hard-window fallback, applied per page) or `"structural"` (PDFs: one chunk per page unchanged; `.md`/`.txt`: split on Markdown headings into whole sections, falling back to `"recursive"` output when there are no headings)
 
-`chunk_size` and `chunk_overlap` are not caller-configurable — they are always sourced from the configured `document.chunk_size` / `document.chunk_overlap`.
+Chunking is fully automatic — there is no caller-configurable strategy. Each document goes through:
+1. **Header-based splitting**: Markdown text with `#`-style headings is split into sections along the heading hierarchy (e.g. `Intro > Background`). Text with no headings (`.txt`, headingless `.md`) and PDFs are split per page instead (layout-aware extraction).
+2. **Size check**: any section whose approximate token count exceeds `document.chunk_size` is recursively split (separator cascade with a hard-window fallback) using 10% of `chunk_size` as overlap; smaller sections are kept whole.
 
-Each stored chunk is tagged with metadata: `document_id`, `source_filename`, `file_type`, `page_number` (`None` for `.txt`/`.md`), `chunk_index`, `total_chunks`, and `uploaded_at`.
+`chunk_size` is not caller-configurable — it is always sourced from the configured `document.chunk_size`.
+
+Each stored chunk is tagged with metadata: `document_id`, `source_filename`, `file_type`, `page_number` (`None` for `.txt`/`.md`), `chunk_index`, `total_chunks`, `uploaded_at`, and `breadcrumb` (e.g. `"report.md > Intro > Background"` or `"sample.pdf > page 2"`).
 
 
 ### Client Examples

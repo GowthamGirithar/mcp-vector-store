@@ -37,7 +37,6 @@ class DocumentConfig(BaseModel):
     chunk_size: int = Field(default=500)
     chunk_overlap: int = Field(default=50)
     max_file_size_mb: float = Field(default=20.0)
-    chunk_strategy: str = Field(default="recursive")
 
     @model_validator(mode="after")
     def _validate_chunking(self) -> "DocumentConfig":
@@ -96,7 +95,6 @@ class Settings(BaseModel):
             chunk_size=int(os.getenv("DOCUMENT_CHUNK_SIZE", "500")),
             chunk_overlap=int(os.getenv("DOCUMENT_CHUNK_OVERLAP", "50")),
             max_file_size_mb=float(os.getenv("DOCUMENT_MAX_FILE_SIZE_MB", "20.0")),
-            chunk_strategy=os.getenv("DOCUMENT_CHUNK_STRATEGY", "recursive")
         )
 
         default_min_score_env = os.getenv("SEARCH_DEFAULT_MIN_SCORE")
