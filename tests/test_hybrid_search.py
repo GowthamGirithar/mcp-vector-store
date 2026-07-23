@@ -5,7 +5,7 @@ import pytest_asyncio
 
 import mcp_vectordb.services as services
 from mcp_vectordb.adapters.chroma import ChromaAdapter
-from mcp_vectordb.config.config import VectorDBConfig
+from mcp_vectordb.config.config import VectorDBConfig, get_settings
 from mcp_vectordb.core.bm25 import BM25Index, tokenize
 from mcp_vectordb.core.document import Document
 from mcp_vectordb.core.fusion import reciprocal_rank_fusion
@@ -151,41 +151,42 @@ async def hybrid_env(tmp_path, monkeypatch):
     await db.close()
 
 
-@pytest.mark.asyncio
-async def test_hybrid_search_returns_fused_results(hybrid_env):
-    result = await search_tool.hybrid_search(query="fox dog", collection="documents", top_k=3)
+DOC_TEXT = {
+    "1": "The quick brown fox jumps over the lazy dog",
+    "2": "Vector databases store embeddings for semantic search",
+    "3": "BM25 is a keyword ranking function used in search engines",
+    "4": "The dog barked at the fox in the yard",
+}
 
-    assert "Found" in result
-    assert "RRF fusion" in result
-    assert "Document ID: 1" in result
-    assert "Document ID: 4" in result
+
+@pytest.mark.asyncio
+async def test_hybrid_search_returns_fused_results(hybrid_env, monkeypatch):
+    monkeypatch.setattr(get_settings().search, "default_top_k", 3)
+    result = await search_tool.hybrid_search(query="fox dog", collection="documents")
+
+    assert isinstance(result, list)
+    assert DOC_TEXT["1"] in result
+    assert DOC_TEXT["4"] in result
     # Doc 3 shares no keyword overlap and the query embedding points away from it,
     # so it should rank behind 1 and 4.
-    pos_1 = result.index("Document ID: 1")
-    pos_4 = result.index("Document ID: 4")
-    pos_3 = result.index("Document ID: 3")
+    pos_1 = result.index(DOC_TEXT["1"])
+    pos_4 = result.index(DOC_TEXT["4"])
+    pos_3 = result.index(DOC_TEXT["3"])
     assert pos_1 < pos_3
     assert pos_4 < pos_3
 
 
 @pytest.mark.asyncio
-async def test_hybrid_search_reports_both_leg_scores(hybrid_env):
-    result = await search_tool.hybrid_search(query="fox dog", collection="documents", top_k=3)
-    assert "Fused RRF Score" in result
-    assert "Vector Score" in result
-    assert "BM25 Score" in result
-
-
-@pytest.mark.asyncio
-async def test_hybrid_search_respects_top_k(hybrid_env):
-    result = await search_tool.hybrid_search(query="the", collection="documents", top_k=2)
-    assert result.count("Document ID:") == 2
+async def test_hybrid_search_respects_top_k(hybrid_env, monkeypatch):
+    monkeypatch.setattr(get_settings().search, "default_top_k", 2)
+    result = await search_tool.hybrid_search(query="the", collection="documents")
+    assert len(result) == 2
 
 
 @pytest.mark.asyncio
 async def test_hybrid_search_missing_collection(hybrid_env):
-    result = await search_tool.hybrid_search(query="fox", collection="does_not_exist", top_k=3)
-    assert "does not exist" in result
+    result = await search_tool.hybrid_search(query="fox", collection="does_not_exist")
+    assert result == []
 
 
 @pytest.mark.asyncio
@@ -196,43 +197,38 @@ async def test_hybrid_search_no_results_for_unmatched_query(hybrid_env):
     result = await search_tool.hybrid_search(
         query="fox",
         collection="documents",
-        top_k=3,
         filters={"nonexistent_key": "nonexistent_value"},
     )
-    assert "No results found" in result
+    assert result == []
 
 
 @pytest.mark.asyncio
-async def test_hybrid_search_invalid_min_score_raises(hybrid_env):
-    with pytest.raises(ValueError):
-        await search_tool.hybrid_search(query="fox", collection="documents", min_score=1.5)
-
-
-@pytest.mark.asyncio
-async def test_hybrid_search_min_score_filters_low_vector_similarity(hybrid_env):
+async def test_hybrid_search_min_score_filters_low_vector_similarity(hybrid_env, monkeypatch):
     # Doc 2's embedding [0.0, 1.0] is orthogonal to the query embedding [1.0, 0.0],
     # so its vector similarity is near zero and should be filtered out.
-    result = await search_tool.hybrid_search(
-        query="vector databases", collection="documents", top_k=4, min_score=0.5
-    )
-    assert "Document ID: 2" not in result
+    monkeypatch.setattr(get_settings().search, "default_min_score", 0.5)
+    monkeypatch.setattr(get_settings().search, "default_top_k", 4)
+    result = await search_tool.hybrid_search(query="vector databases", collection="documents")
+    assert DOC_TEXT["2"] not in result
 
 
 @pytest.mark.asyncio
 async def test_hybrid_search_uses_reranker_when_requested(hybrid_env, monkeypatch):
     async def _fake_rerank(query, candidates, model_name=None):
-        # Reverse whatever order fusion produced, so we can detect the
-        # reranker's effect on final ordering deterministically.
+        # Score by ascending position in the fused order, so sorting
+        # descending by score reverses whatever order fusion produced.
         doc_ids = [doc_id for doc_id, _ in candidates]
-        return [(doc_id, float(i)) for i, doc_id in enumerate(reversed(doc_ids))]
+        return [(doc_id, float(i)) for i, doc_id in enumerate(doc_ids)]
 
     monkeypatch.setattr(search_tool, "cross_encoder_rerank", _fake_rerank)
+    monkeypatch.setattr(get_settings().search, "default_top_k", 4)
 
-    result = await search_tool.hybrid_search(
-        query="fox dog", collection="documents", top_k=4, use_reranker=True
-    )
-    assert "cross-encoder rerank" in result
-    assert "Rerank Score" in result
+    baseline = await search_tool.hybrid_search(query="fox dog", collection="documents")
+
+    monkeypatch.setattr(get_settings().search, "use_reranker", True)
+    reranked = await search_tool.hybrid_search(query="fox dog", collection="documents")
+
+    assert reranked == list(reversed(baseline))
 
 
 @pytest.mark.asyncio
@@ -249,10 +245,9 @@ async def test_hybrid_search_filters_apply_to_bm25_leg_too(hybrid_env):
     result = await search_tool.hybrid_search(
         query="fox",
         collection="documents",
-        top_k=3,
         filters={"nonexistent_key": "nonexistent_value"},
     )
-    assert "No results found" in result
+    assert result == []
 
 
 @pytest.mark.asyncio

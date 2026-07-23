@@ -27,7 +27,7 @@ async def main():
             print(f"Tool result: {res}")    
             print("\n")
             
-            search_res = await session.call_tool(name="similarity_search", arguments={"query":"what is my name", "collection":"memory", "top_k":10})    
+            search_res = await session.call_tool(name="similarity_search", arguments={"query":"what is my name", "collection":"memory"})    
             print(f"Tool result: {search_res}")    
             print("\n")
             

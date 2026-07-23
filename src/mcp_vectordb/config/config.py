@@ -61,6 +61,7 @@ class SearchConfig(BaseModel):
     vector_weight: float = Field(default=1.0)
     bm25_weight: float = Field(default=1.0)
     reranker_model: str = Field(default="cross-encoder/ms-marco-MiniLM-L-6-v2")
+    use_reranker: bool = Field(default=False)
 
 
 class Settings(BaseModel):
@@ -104,7 +105,8 @@ class Settings(BaseModel):
             rrf_k=int(os.getenv("SEARCH_RRF_K", "60")),
             vector_weight=float(os.getenv("SEARCH_VECTOR_WEIGHT", "1.0")),
             bm25_weight=float(os.getenv("SEARCH_BM25_WEIGHT", "1.0")),
-            reranker_model=os.getenv("SEARCH_RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+            reranker_model=os.getenv("SEARCH_RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
+            use_reranker=os.getenv("SEARCH_USE_RERANKER", "false").lower() in ("1", "true", "yes")
         )
 
         return cls(vector_db=vector_db, embedding=embedding, server=server, document=document, search=search)
