@@ -1,0 +1,49 @@
+tests/test_store_document.py
+  s_c7d0c5fc21c898::t_d3de9d0c246a8d 202,207,224,227,236-241,244-248,252-253,255,257-261,264-265,269
+  s_c7d0c5fc21c898::t_b2b2eb10c829de 220
+src/mcp_vectordb/tools/storage.py
+  s_c7d0c5fc21c898::t_126cbf8c037085 122-126,141-142,162
+  s_c7d0c5fc21c898::t_58e1c529ce38ef 163,165
+  s_c7d0c5fc21c898::t_57176031de9962 218
+  s_c7d0c5fc21c898::t_eaa91979644664 182,190,193-195
+  s_c7d0c5fc21c898::t_d03ff56681c833 159
+  s_c7d0c5fc21c898::t_b484587c0dc643 160-161
+README.md
+  s_c7d0c5fc21c898::t_c546b1b5337360 100-102,104-106
+tests/test_config.py
+  s_c7d0c5fc21c898::t_66fedabacdebf7 6,8
+tests/test_chunking.py
+  s_c7d0c5fc21c898::t_46dc9bc791d340 128,131
+  s_c7d0c5fc21c898::t_a028f681f5ebae 130,145-147,164-165,167-174,185-186,194-198,200-201,204,206-208,211,217,221,224-225,229,234,238
+  s_c7d0c5fc21c898::t_10cfdfbcf4cc00 132-144,160-163,166,178-183,191,202-203,205,218-220,230-231
+  s_c7d0c5fc21c898::t_71f010576b9c09 175-176
+  s_c7d0c5fc21c898::t_ce8c3bede24842 199
+  s_c7d0c5fc21c898::t_9ebeabbd9c9d28 235
+  s_c7d0c5fc21c898::t_b05d8078011573 239
+src/mcp_vectordb/utils/validation.py
+  s_c7d0c5fc21c898::t_8195f7edf9cef0 58
+src/mcp_vectordb/core/chunking.py
+  s_c7d0c5fc21c898::t_d6605ec9e3ce62 175,189-190,201,204,213,244-245,247-248,251,264,266-269,272-273,277-284,286-287,290-294
+  s_c7d0c5fc21c898::t_daaec94411707f 15
+  s_c7d0c5fc21c898::t_1937f5c4d0c696 222-234,236-237,240
+  s_c7d0c5fc21c898::t_3f527a89be6fba 270,285
+  s_c7d0c5fc21c898::t_e594932096daa7 160
+  s_c7d0c5fc21c898::t_f848ea08ba0480 159,162-171,173-174,176-179,181-185,191-192,195,200,203,205-211,216-221,238-239,241-243,246,249-250,252-263
+  s_c7d0c5fc21c898::t_60da5aa3b3c6db 172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "e395ae4d0857c194a8d965a290f2ff5bff2c9bc2",
+  "prompts": {},
+  "sessions": {
+    "s_c7d0c5fc21c898": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fa1d029a-aaca-49fb-b845-daefd77fed34",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Gowtham Girithar Srirangasamy <gowthamgirithar@gmail.com>"
+    }
+  }
+}
