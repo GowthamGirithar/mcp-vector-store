@@ -1,11 +1,11 @@
-"""Tests for the upload_document MCP tool (document-upload-tool T5)."""
+"""Tests for the store_document MCP tool (document-upload-tool T5)."""
 
 import os
 
 import pytest
 
 from mcp_vectordb.core.document import Document
-from mcp_vectordb.tools import document as document_tool
+from mcp_vectordb.tools import storage as storage_tool
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
 
@@ -72,19 +72,17 @@ def fake_embedding_service():
 
 @pytest.fixture(autouse=True)
 def patch_services(monkeypatch, fake_vector_db, fake_embedding_service):
-    monkeypatch.setattr(document_tool, "get_vector_db", lambda: fake_vector_db)
+    monkeypatch.setattr(storage_tool, "get_vector_db", lambda: fake_vector_db)
     monkeypatch.setattr(
-        document_tool, "get_embedding_service", lambda: fake_embedding_service
+        storage_tool, "get_embedding_service", lambda: fake_embedding_service
     )
 
 
 @pytest.mark.asyncio
 async def test_upload_multi_page_pdf_produces_correct_chunk_metadata(fake_vector_db):
-    result = await document_tool.upload_document(
+    result = await storage_tool.store_document(
         file_path=fixture_path("sample.pdf"),
         collection="documents",
-        chunk_size=200,
-        chunk_overlap=20,
     )
 
     stored = fake_vector_db.stored["documents"]
@@ -110,7 +108,7 @@ async def test_upload_multi_page_pdf_produces_correct_chunk_metadata(fake_vector
 
 @pytest.mark.asyncio
 async def test_upload_txt_file_has_none_page_number(fake_vector_db):
-    await document_tool.upload_document(
+    await storage_tool.store_document(
         file_path=fixture_path("sample.txt"),
         collection="documents",
     )
@@ -124,7 +122,7 @@ async def test_upload_txt_file_has_none_page_number(fake_vector_db):
 
 @pytest.mark.asyncio
 async def test_upload_md_file_has_none_page_number(fake_vector_db):
-    await document_tool.upload_document(
+    await storage_tool.store_document(
         file_path=fixture_path("sample.md"),
         collection="documents",
     )
@@ -139,7 +137,7 @@ async def test_upload_md_file_has_none_page_number(fake_vector_db):
 @pytest.mark.asyncio
 async def test_upload_unsupported_extension_raises_value_error():
     with pytest.raises(ValueError):
-        await document_tool.upload_document(file_path=fixture_path("sample.docx"))
+        await storage_tool.store_document(file_path=fixture_path("sample.docx"))
 
 
 @pytest.mark.asyncio
@@ -151,13 +149,13 @@ async def test_upload_file_exceeding_max_size_raises_value_error(monkeypatch):
     monkeypatch.setattr(settings.document, "max_file_size_mb", 0.0000001)
 
     with pytest.raises(ValueError):
-        await document_tool.upload_document(file_path=fixture_path("sample.txt"))
+        await storage_tool.store_document(file_path=fixture_path("sample.txt"))
 
 
 @pytest.mark.asyncio
 async def test_upload_reserved_metadata_key_raises_value_error():
     with pytest.raises(ValueError):
-        await document_tool.upload_document(
+        await storage_tool.store_document(
             file_path=fixture_path("sample.txt"),
             metadata={"document_id": "caller-supplied"},
         )
@@ -166,39 +164,38 @@ async def test_upload_reserved_metadata_key_raises_value_error():
 @pytest.mark.asyncio
 async def test_upload_corrupt_pdf_raises_runtime_error():
     with pytest.raises(RuntimeError):
-        await document_tool.upload_document(file_path=fixture_path("corrupt.pdf"))
+        await storage_tool.store_document(file_path=fixture_path("corrupt.pdf"))
 
 
 @pytest.mark.asyncio
 async def test_upload_embedding_failure_surfaces_as_runtime_error(monkeypatch):
     failing_embedding_service = FakeEmbeddingService(fail=True)
     monkeypatch.setattr(
-        document_tool, "get_embedding_service", lambda: failing_embedding_service
+        storage_tool, "get_embedding_service", lambda: failing_embedding_service
     )
 
     with pytest.raises(RuntimeError):
-        await document_tool.upload_document(file_path=fixture_path("sample.txt"))
+        await storage_tool.store_document(file_path=fixture_path("sample.txt"))
 
 
 @pytest.mark.asyncio
 async def test_upload_vector_db_store_failure_surfaces_as_runtime_error(monkeypatch):
     failing_vector_db = FakeVectorDB(fail_store=True)
-    monkeypatch.setattr(document_tool, "get_vector_db", lambda: failing_vector_db)
+    monkeypatch.setattr(storage_tool, "get_vector_db", lambda: failing_vector_db)
 
     with pytest.raises(RuntimeError):
-        await document_tool.upload_document(file_path=fixture_path("sample.txt"))
+        await storage_tool.store_document(file_path=fixture_path("sample.txt"))
 
 
 @pytest.mark.asyncio
-async def test_upload_custom_document_id_is_used(fake_vector_db):
-    await document_tool.upload_document(
-        file_path=fixture_path("sample.txt"),
-        document_id="my-custom-doc-id",
-    )
+async def test_upload_document_id_is_auto_generated_and_shared_across_chunks(
+    fake_vector_db,
+):
+    await storage_tool.store_document(file_path=fixture_path("sample.txt"))
 
     stored = fake_vector_db.stored["documents"]
-    for doc in stored:
-        assert doc.metadata["document_id"] == "my-custom-doc-id"
+    document_ids = {doc.metadata["document_id"] for doc in stored}
+    assert len(document_ids) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +207,7 @@ async def test_upload_custom_document_id_is_used(fake_vector_db):
 async def test_upload_structural_strategy_on_markdown_produces_section_chunks(
     fake_vector_db,
 ):
-    await document_tool.upload_document(
+    await storage_tool.store_document(
         file_path=fixture_path("sample_sections.md"),
         chunk_strategy="structural",
     )
@@ -228,7 +225,7 @@ async def test_upload_structural_strategy_on_markdown_produces_section_chunks(
 async def test_upload_structural_strategy_on_multi_page_pdf_produces_one_chunk_per_page(
     fake_vector_db,
 ):
-    await document_tool.upload_document(
+    await storage_tool.store_document(
         file_path=fixture_path("sample.pdf"),
         chunk_strategy="structural",
     )
@@ -241,7 +238,7 @@ async def test_upload_structural_strategy_on_multi_page_pdf_produces_one_chunk_p
 
 @pytest.mark.asyncio
 async def test_upload_omitted_chunk_strategy_defaults_to_recursive(fake_vector_db):
-    await document_tool.upload_document(file_path=fixture_path("sample.txt"))
+    await storage_tool.store_document(file_path=fixture_path("sample.txt"))
 
     stored = fake_vector_db.stored["documents"]
     assert len(stored) > 0
@@ -257,10 +254,10 @@ async def test_upload_invalid_chunk_strategy_raises_value_error_before_parsing(
         called["extract_text"] = True
         raise AssertionError("extract_text should not be called")
 
-    monkeypatch.setattr(document_tool, "extract_text", fake_extract_text)
+    monkeypatch.setattr(storage_tool, "extract_text", fake_extract_text)
 
     with pytest.raises(ValueError):
-        await document_tool.upload_document(
+        await storage_tool.store_document(
             file_path=fixture_path("sample.txt"),
             chunk_strategy="bogus",
         )
@@ -272,7 +269,7 @@ async def test_upload_invalid_chunk_strategy_raises_value_error_before_parsing(
 async def test_upload_structural_strategy_on_txt_matches_recursive_output(
     fake_vector_db,
 ):
-    await document_tool.upload_document(
+    await storage_tool.store_document(
         file_path=fixture_path("sample.txt"),
         collection="structural_collection",
         chunk_strategy="structural",
@@ -281,7 +278,7 @@ async def test_upload_structural_strategy_on_txt_matches_recursive_output(
         doc.text for doc in fake_vector_db.stored["structural_collection"]
     ]
 
-    await document_tool.upload_document(
+    await storage_tool.store_document(
         file_path=fixture_path("sample.txt"),
         collection="recursive_collection",
         chunk_strategy="recursive",

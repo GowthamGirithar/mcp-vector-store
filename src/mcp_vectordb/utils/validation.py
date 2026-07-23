@@ -136,30 +136,6 @@ def validate_top_k(top_k: int, max_k: int = 1000) -> int:
     return top_k
 
 
-def validate_document_id(doc_id: str) -> str:
-    """Validate document ID.
-    
-    Args:
-        doc_id: The document ID to validate
-        
-    Returns:
-        The validated document ID
-        
-    Raises:
-        ValidationError: If document ID is invalid
-    """
-    if not isinstance(doc_id, str):
-        raise ValidationError("Document ID must be a string")
-    
-    if not doc_id.strip():
-        raise ValidationError("Document ID cannot be empty")
-    
-    if len(doc_id) > 255:
-        raise ValidationError("Document ID cannot exceed 255 characters")
-    
-    return doc_id.strip()
-
-
 def validate_file_path(path: str, allowed_extensions: set, max_file_size_mb: float) -> str:
     """Validate a file path for document upload.
 

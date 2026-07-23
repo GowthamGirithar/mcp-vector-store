@@ -216,8 +216,21 @@ class BaseVectorDBAdapter(VectorDBAdapter):
         self._validate_initialized()
         self._validate_connected()
         self._validate_collection_name(collection)
-        
+
         return await self._count_documents_impl(collection)
+
+    async def get_all_documents(
+        self, collection: str, filters: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
+        """Fetch every document (id + text + metadata, no embeddings) in a collection.
+
+        Used to build the BM25 keyword-search corpus for hybrid search.
+        """
+        self._validate_initialized()
+        self._validate_connected()
+        self._validate_collection_name(collection)
+
+        return await self._get_all_documents_impl(collection, filters)
     
     # Abstract implementation methods
     async def _create_collection_impl(self, name: str, dimension: int, metadata: Optional[Dict[str, Any]] = None) -> bool:
@@ -264,4 +277,10 @@ class BaseVectorDBAdapter(VectorDBAdapter):
     
     async def _count_documents_impl(self, collection: str) -> int:
         """Implementation-specific document counting."""
+        raise NotImplementedError
+
+    async def _get_all_documents_impl(
+        self, collection: str, filters: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
+        """Implementation-specific bulk document fetch (no embeddings)."""
         raise NotImplementedError

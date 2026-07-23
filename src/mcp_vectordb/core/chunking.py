@@ -31,29 +31,20 @@ def recursive_chunk(text: str, chunk_size: int, chunk_overlap: int) -> List[str]
     overlap between consecutive windows.
 
     Args:
-        text: The input text to chunk.
-        chunk_size: Maximum number of characters per chunk. Must be > 0.
+        text: The input text to chunk. ``chunk_size`` must be > 0 and
+            ``chunk_overlap`` must be >= 0 and strictly less than
+            ``chunk_size`` — the caller (``store_document``) is
+            responsible for this, since these values are sourced from
+            config validated at startup (see
+            ``DocumentConfig._validate_chunking``).
+        chunk_size: Maximum number of characters per chunk.
         chunk_overlap: Number of overlapping characters between
-            consecutive hard-window chunks. Must be >= 0 and strictly
-            less than ``chunk_size``.
+            consecutive hard-window chunks.
 
     Returns:
         A list of non-empty chunk strings. Returns ``[]`` for empty
         string input.
-
-    Raises:
-        ValueError: If ``chunk_size`` <= 0, ``chunk_overlap`` < 0, or
-            ``chunk_overlap`` >= ``chunk_size``.
     """
-    if chunk_size <= 0:
-        raise ValueError(f"chunk_size must be > 0, got {chunk_size}")
-    if chunk_overlap < 0:
-        raise ValueError(f"chunk_overlap must be >= 0, got {chunk_overlap}")
-    if chunk_overlap >= chunk_size:
-        raise ValueError(
-            f"chunk_overlap ({chunk_overlap}) must be < chunk_size ({chunk_size})"
-        )
-
     if text == "":
         return []
 
@@ -142,8 +133,8 @@ def _merge_pieces(pieces: List[str], chunk_size: int, separator: str) -> List[st
 def _hard_window_split(text: str, chunk_size: int, chunk_overlap: int) -> List[str]:
     """Fallback splitter: fixed-size character windows with overlap.
 
-    ``chunk_overlap < chunk_size`` is guaranteed by the caller (validated
-    in ``recursive_chunk``), so the step size ``chunk_size - chunk_overlap``
+    ``chunk_overlap < chunk_size`` is assumed to hold (see
+    ``recursive_chunk``), so the step size ``chunk_size - chunk_overlap``
     is always >= 1, guaranteeing forward progress and termination even on
     pathological input with no separators at all.
     """

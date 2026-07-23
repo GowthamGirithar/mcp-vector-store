@@ -74,7 +74,6 @@ Store text documents with automatic embedding generation.
 - `text` (required): The text content to store
 - `collection` (optional): Collection name (default: "documents")
 - `metadata` (optional): Custom metadata dictionary
-- `document_id` (optional): Custom document ID
 
 
 #### 2. `similarity_search`
@@ -90,17 +89,16 @@ Perform semantic similarity search to find relevant documents.
 - `min_score` (optional): Minimum similarity score threshold (0.0-1.0)
 
 
-#### 3. `upload_document`
+#### 3. `store_document`
 Upload a document (PDF, TXT, or MD), chunk it, and store the chunks with automatic embedding generation.
 
 **Parameters:**
 - `file_path` (required): Path to the document file to upload (`.pdf`, `.txt`, `.md`)
 - `collection` (optional): Collection name to store the chunks in (default: "documents")
 - `metadata` (optional): Custom metadata dictionary applied to every chunk
-- `document_id` (optional): Custom document ID shared by all chunks (auto-generated if not provided)
-- `chunk_size` (optional): Maximum characters per chunk (defaults to the configured `document.chunk_size`)
-- `chunk_overlap` (optional): Overlap characters between hard-window chunks (defaults to the configured `document.chunk_overlap`)
 - `chunk_strategy` (optional): Chunking strategy to use — `"recursive"` (default; separator-based splitting with a hard-window fallback, applied per page) or `"structural"` (PDFs: one chunk per page unchanged; `.md`/`.txt`: split on Markdown headings into whole sections, falling back to `"recursive"` output when there are no headings)
+
+`chunk_size` and `chunk_overlap` are not caller-configurable — they are always sourced from the configured `document.chunk_size` / `document.chunk_overlap`.
 
 Each stored chunk is tagged with metadata: `document_id`, `source_filename`, `file_type`, `page_number` (`None` for `.txt`/`.md`), `chunk_index`, `total_chunks`, and `uploaded_at`.
 

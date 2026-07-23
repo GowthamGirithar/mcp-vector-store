@@ -29,6 +29,18 @@ class DocumentParseError(Exception):
 
 
 _TEXT_EXTENSIONS = {".txt", ".md"}
+_PDF_EXTENSIONS = {".pdf"}
+
+# Single source of truth for which extensions `extract_text` supports.
+# Callers that need to pre-validate a file's extension (e.g. `store_document`)
+# should use this set rather than maintaining their own copy.
+SUPPORTED_EXTENSIONS = _PDF_EXTENSIONS | _TEXT_EXTENSIONS
+
+
+def get_file_extension(file_path: str) -> str:
+    """Return the lowercased extension (including the dot) of `file_path`."""
+    _, dot_extension = _splitext(file_path)
+    return dot_extension.lower()
 
 
 def extract_text(file_path: str) -> List[Tuple[Optional[int], str]]:
@@ -43,27 +55,23 @@ def extract_text(file_path: str) -> List[Tuple[Optional[int], str]]:
         tuple `(None, text)`.
 
     Raises:
-        UnsupportedFileTypeError: If the file extension is not one of
-            `.pdf`, `.txt`, `.md`. Raised before the file is opened.
+        UnsupportedFileTypeError: If the file extension is not in
+            `SUPPORTED_EXTENSIONS`. Raised before the file is opened.
         DocumentParseError: If a `.pdf` file cannot be parsed (e.g. it is
             corrupt or truncated).
     """
-    extension = _get_lowercased_extension(file_path)
+    extension = get_file_extension(file_path)
 
-    if extension == ".pdf":
+    if extension in _PDF_EXTENSIONS:
         return _extract_pdf_text(file_path)
     if extension in _TEXT_EXTENSIONS:
         return _extract_plain_text(file_path)
 
+    allowed_str = ", ".join(sorted(SUPPORTED_EXTENSIONS))
     raise UnsupportedFileTypeError(
         f"Unsupported file extension '{extension}' for file '{file_path}'. "
-        f"Supported extensions are: .pdf, .txt, .md"
+        f"Supported extensions are: {allowed_str}"
     )
-
-
-def _get_lowercased_extension(file_path: str) -> str:
-    _, dot_extension = _splitext(file_path)
-    return dot_extension.lower()
 
 
 def _splitext(file_path: str) -> Tuple[str, str]:
