@@ -1,0 +1,43 @@
+src/mcp_vectordb/tools/search.py
+  s_22a5cf7c8e606b::t_d4fc08dcf30fa5 69-70,82
+  s_22a5cf7c8e606b::t_84651322891148 152-157,173
+  s_22a5cf7c8e606b::t_a2c84fc7ef8fea 52
+  s_22a5cf7c8e606b::t_689371765d9583 62,87,91-92,97,105,115,118-119
+  s_22a5cf7c8e606b::t_4981c1583af810 3,16
+  s_22a5cf7c8e606b::t_7799f1f42ddd55 174-175
+  s_22a5cf7c8e606b::t_5e1316c75c70a1 146,166,181-184,190-191,212-217,225-230,245-250,263-268,282-287,291
+  s_22a5cf7c8e606b::t_55554a148e269c 77-80,90,109-114
+  s_22a5cf7c8e606b::t_711ed3ba904c6b 17
+example_mcp_client_sse.py
+  s_22a5cf7c8e606b::t_80225a56c2ec5c 30
+tests/test_hybrid_search.py
+  s_22a5cf7c8e606b::t_5a8d1f93dcbdbe 8
+  s_22a5cf7c8e606b::t_fe71690fa19c55 154-161,167-169,172-174,183,189,202,212,227-228,250
+  s_22a5cf7c8e606b::t_a9db35e0d889ba 163-165,180-182,188,210-211,224,226,229
+  s_22a5cf7c8e606b::t_cb4a1d38364ad1 206,209
+  s_22a5cf7c8e606b::t_849ca5af679def 230-231
+  s_22a5cf7c8e606b::t_bfe789125239ed 218-219,221
+example_mcp_client_stdio.py
+  s_22a5cf7c8e606b::t_80225a56c2ec5c 38
+src/mcp_vectordb/config/config.py
+  s_22a5cf7c8e606b::t_ab754e3944fa7b 64
+  s_22a5cf7c8e606b::t_f06a29a53ecf8f 108-109
+example_mcp_client_streamable_http.py
+  s_22a5cf7c8e606b::t_80225a56c2ec5c 36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "43b35ac6f88fbd8552b72c7324a325962d6015b1",
+  "prompts": {},
+  "sessions": {
+    "s_22a5cf7c8e606b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e39b752c-6219-46ff-adf6-7ed379047598",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Gowtham Girithar Srirangasamy <gowthamgirithar@gmail.com>"
+    }
+  }
+}
