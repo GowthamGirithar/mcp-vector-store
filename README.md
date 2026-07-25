@@ -65,7 +65,7 @@ The server supports three transport modes:
 
 ### Available Tools
 
-The server provides two main MCP tools:
+The server provides three main MCP tools:
 
 #### 1. `store_text`
 Store text documents with automatic embedding generation.
@@ -88,6 +88,20 @@ Perform semantic similarity search to find relevant documents.
 - `include_scores` (optional): Include similarity scores (default: true)
 - `include_metadata` (optional): Include document metadata (default: true)
 - `min_score` (optional): Minimum similarity score threshold (0.0-1.0)
+
+
+#### 3. `upload_document`
+Upload a document (PDF, TXT, or MD), chunk it, and store the chunks with automatic embedding generation.
+
+**Parameters:**
+- `file_path` (required): Path to the document file to upload (`.pdf`, `.txt`, `.md`)
+- `collection` (optional): Collection name to store the chunks in (default: "documents")
+- `metadata` (optional): Custom metadata dictionary applied to every chunk
+- `document_id` (optional): Custom document ID shared by all chunks (auto-generated if not provided)
+- `chunk_size` (optional): Maximum characters per chunk (defaults to the configured `document.chunk_size`)
+- `chunk_overlap` (optional): Overlap characters between hard-window chunks (defaults to the configured `document.chunk_overlap`)
+
+Each stored chunk is tagged with metadata: `document_id`, `source_filename`, `file_type`, `page_number` (`None` for `.txt`/`.md`), `chunk_index`, `total_chunks`, and `uploaded_at`.
 
 
 ### Client Examples

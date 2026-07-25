@@ -1,0 +1,77 @@
+{
+  "feature": "document-upload-tool",
+  "base_branch": "main",
+  "notes": [
+    "No gh/PR creation for now: gh auth is on a different GitHub account than the repo owner (GowthamGirithar/mcp-vectordb-server), so gh pr create fails with a GraphQL 'repository not found' error. Sub-agents should implement, test, commit, and push their branch, then STOP before any gh pr create step, reporting status: done with pr_url: null.",
+    "Repo had no tests/ or pytest config before T1. T1 added root pytest.ini (pythonpath = src, testpaths = tests) so tests import as from mcp_vectordb... (not from src.mcp_vectordb... like main.py does). A local .venv was created (gitignored) with requirements.txt + requirements-dev.txt installed to run pytest.",
+    "tests/conftest.py has an autouse fixture reset_settings_cache that resets mcp_vectordb.config.config._settings = None before/after every test so env-var overrides via monkeypatch.setenv take effect. Reuse this conftest.py, do not redeclare it.",
+    "IMPORTANT: docs/document-upload-tool/*.md and tasks.json are UNTRACKED on main (by design, so the orchestrator can keep updating them without each task branch fighting over them). T1 and T2 each independently committed their own copies of docs/ into their branches, which is harmless but not required \u2014 future task sub-agents should NOT git add/commit the docs/ folder at all; leave it untracked and only commit the actual feature code + tests + changelog append if instructed. When a sub-agent runs git checkout to switch branches, any docs/ files that got committed on the branch being left will be removed from the working tree by git (since they are absent from the other branch) - the orchestrator restores them afterward from branch history, so this is expected and not a bug.",
+    "T2 (recursive_chunk): hard-window fallback step size is chunk_size - chunk_overlap (>=1), guarantees termination. Separator-split pieces are greedily re-merged up to chunk_size, so one chunk may contain multiple small paragraphs (not strictly one-paragraph-per-chunk).",
+    "T3 (extract_text): DocumentParseError (wraps pypdf.errors.PdfReadError/PdfStreamError) for corrupt PDFs -> T5 should map to RuntimeError. UnsupportedFileTypeError (ValueError subclass) for bad extensions -> T5 should map to ValueError, distinct from DocumentParseError.",
+    "Orchestration change: docs/document-upload-tool/ is now owned exclusively by the orchestrator. T4/T5 sub-agents must NOT create, edit, or commit any file under docs/document-upload-tool/ (including changelog.md) \u2014 the orchestrator appends changelog entries itself after each task completes.",
+    "T4 (validators): validate_file_path(path, allowed_extensions, max_file_size_mb), validate_chunk_size(chunk_size), validate_chunk_overlap(chunk_overlap, chunk_size) added to utils/validation.py. Reserved-key extension was folded directly into validate_metadata's existing reserved_keys set (document_id, source_filename, file_type, page_number, chunk_index, total_chunks, uploaded_at added to {id, embedding, document, text}) \u2014 no sibling function."
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "DocumentConfig",
+      "description": "Add a DocumentConfig pydantic model (chunk_size: int = 500, chunk_overlap: int = 50, max_file_size_mb: float = 20.0) to src/mcp_vectordb/config/config.py, wired into Settings and Settings.from_env() reading DOCUMENT_CHUNK_SIZE, DOCUMENT_CHUNK_OVERLAP, DOCUMENT_MAX_FILE_SIZE_MB env vars. Add the new env vars (commented, with defaults) to .env.example. TDD: test Settings.from_env() defaults and env-var overrides using monkeypatch.setenv. See docs/document-upload-tool/tasks.md T1 for full details.",
+      "depends_on": [],
+      "status": "done",
+      "branch": "document-upload-tool/t1-document-config",
+      "pr_url": null
+    },
+    {
+      "id": "T2",
+      "title": "Recursive chunking",
+      "description": "Implement recursive_chunk(text, chunk_size, chunk_overlap) -> List[str] in new src/mcp_vectordb/core/chunking.py. Splits on \\n\\n, then \\n, then '. ', then falls back to a hard character window with overlap. Never returns empty-string chunks, never infinite-loops, raises ValueError if chunk_overlap >= chunk_size. Pure stdlib, no new dependency. See docs/document-upload-tool/tasks.md T2 for full test list and acceptance criteria.",
+      "depends_on": [],
+      "status": "done",
+      "branch": "document-upload-tool/t2-recursive-chunking",
+      "pr_url": null
+    },
+    {
+      "id": "T3",
+      "title": "Text extraction (PDF/TXT/MD)",
+      "description": "Implement extract_text(file_path) -> List[Tuple[Optional[int], str]] in new src/mcp_vectordb/core/parsers.py. Dispatch by extension: .pdf via pypdf (per-page text, page_number starting at 1), .txt/.md read directly as a single (None, text) entry. Raise a clear error for unsupported extensions and a distinct parse-failure exception for corrupt PDFs. Add pypdf>=4.0.0 to requirements.txt. Add small test fixtures (sample.pdf, sample.txt, sample.md, and a corrupt PDF fixture) under tests/fixtures/. See docs/document-upload-tool/tasks.md T3 for full test list and acceptance criteria.",
+      "depends_on": [],
+      "status": "done",
+      "branch": "document-upload-tool/t3-text-extraction",
+      "pr_url": null
+    },
+    {
+      "id": "T4",
+      "title": "Validators",
+      "description": "Add to src/mcp_vectordb/utils/validation.py: validate_file_path(path, allowed_extensions, max_file_size_mb) checking existence/readability/extension/size, raising ValidationError with a clear message per failure; validate_chunk_size(chunk_size); validate_chunk_overlap(chunk_overlap, chunk_size) (overlap >= 0 and < chunk_size). Extend the reserved-keys set used by validate_metadata (or add a sibling validator) to reject document_id, source_filename, file_type, page_number, chunk_index, total_chunks, uploaded_at as caller-supplied metadata keys. Must not regress existing validate_metadata/validate_text tests. See docs/document-upload-tool/tasks.md T4 for full test list and acceptance criteria.",
+      "depends_on": [],
+      "status": "done",
+      "branch": "document-upload-tool/t4-validators",
+      "pr_url": null
+    },
+    {
+      "id": "T5",
+      "title": "upload_document MCP tool",
+      "description": "Implement @mcp.tool() async def upload_document(file_path, collection='documents', metadata=None, document_id=None, chunk_size=None, chunk_overlap=None, ctx=None) -> str in new src/mcp_vectordb/tools/document.py, registered via src/mcp_vectordb/tools/__init__.py. Flow: validate inputs (T4 validators, DocumentConfig defaults from T1 when chunk_size/chunk_overlap are None) -> ctx.info start -> extract_text (T3) per page -> recursive_chunk (T2) per page with ctx.debug progress -> build one Document per chunk with document_id/source_filename/file_type/page_number/chunk_index/total_chunks/uploaded_at + merged user metadata -> auto-create collection if missing (reuse store_text pattern) -> batch-embed via embedding_service.generate_embeddings -> vector_db.store_documents -> return summary string -> three-tier exception handling matching store_text/similarity_search exactly. Also update README.md to document the new tool. See docs/document-upload-tool/tasks.md T5 for full test list and acceptance criteria.",
+      "depends_on": [
+        "T1",
+        "T2",
+        "T3",
+        "T4"
+      ],
+      "status": "in_progress",
+      "branch": null,
+      "pr_url": null
+    },
+    {
+      "id": "T6",
+      "title": "chunk_strategy support (config + validation + structural_chunk + tool wiring)",
+      "description": "Combined task (by request, not split by layer): (1) Add chunk_strategy: str = 'recursive' to DocumentConfig (config/config.py), wired into Settings.from_env() reading DOCUMENT_CHUNK_STRATEGY (commented entry in .env.example). (2) Add validate_chunk_strategy(chunk_strategy) -> str to utils/validation.py, raising ValidationError for anything outside {'recursive', 'structural'}. (3) Implement structural_chunk(pages: List[Tuple[Optional[int], str]], chunk_size, chunk_overlap) -> List[Tuple[Optional[int], str]] in core/chunking.py, alongside recursive_chunk: multi-page input (PDF) passes each page through as one chunk unchanged even if longer than chunk_size; single-page input with no page_number (.md/.txt) splits on Markdown heading lines (regex ^#{1,6}\\s, multiline) into one whole chunk per section (no size-based re-splitting), falling back to recursive_chunk (wrapped as (None, piece)) when there are zero headings so .txt output is unchanged. (4) Add chunk_strategy: Optional[str] = None parameter to upload_document (tools/document.py), resolved against settings.document.chunk_strategy when None, validated via validate_chunk_strategy before any parsing, branching the chunking step ('recursive' keeps the existing per-page loop; 'structural' calls structural_chunk once for the whole document). Update README.md to document chunk_strategy. See docs/document-upload-tool/tasks.md T6 for full test list and acceptance criteria.",
+      "depends_on": [
+        "T5"
+      ],
+      "status": "pending",
+      "branch": null,
+      "pr_url": null
+    }
+  ]
+}

@@ -29,11 +29,19 @@ class ServerConfig(BaseModel):
     transport: str = Field(default="streamable-http")
 
 
+class DocumentConfig(BaseModel):
+    """Document upload/chunking configuration."""
+    chunk_size: int = Field(default=500)
+    chunk_overlap: int = Field(default=50)
+    max_file_size_mb: float = Field(default=20.0)
+
+
 class Settings(BaseModel):
     """Main settings class loaded from environment variables."""
     vector_db: VectorDBConfig
     embedding: EmbeddingConfig
     server: ServerConfig
+    document: DocumentConfig
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -54,8 +62,14 @@ class Settings(BaseModel):
         server = ServerConfig(
             transport=os.getenv("MCP_TRANSPORT", "streamable-http")
         )
-        
-        return cls(vector_db=vector_db, embedding=embedding, server=server)
+
+        document = DocumentConfig(
+            chunk_size=int(os.getenv("DOCUMENT_CHUNK_SIZE", "500")),
+            chunk_overlap=int(os.getenv("DOCUMENT_CHUNK_OVERLAP", "50")),
+            max_file_size_mb=float(os.getenv("DOCUMENT_MAX_FILE_SIZE_MB", "20.0"))
+        )
+
+        return cls(vector_db=vector_db, embedding=embedding, server=server, document=document)
 
 
 # Global settings instance
