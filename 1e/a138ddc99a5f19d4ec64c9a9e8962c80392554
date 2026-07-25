@@ -1,0 +1,63 @@
+tests/test_document_embedding_tool.py
+  s_e4ab94f0a4296a::t_ffd9e088147f58 1-87,89-97
+  s_e4ab94f0a4296a::t_cf978187931a53 88
+docs/generate-document-embedding/design.md
+  s_e4ab94f0a4296a::t_dca0434738a47f 85-91
+  s_e4ab94f0a4296a::t_a6c2a0945ec2a6 1-79,92-95
+  s_e4ab94f0a4296a::t_3afbcd0a7e4ef0 80-84
+docs/generate-document-embedding/tasks.md
+  s_e4ab94f0a4296a::t_bbaf8384447aad 1-44
+tests/test_document_embedding_core.py
+  s_e4ab94f0a4296a::t_08aab23cb64782 1-101
+tests/fixtures/multimodal_sample.md
+  s_e4ab94f0a4296a::t_dbc3a706ecf909 1-9
+src/mcp_vectordb/tools/document_embedding.py
+  s_e4ab94f0a4296a::t_75a5087f0f307d 1-102
+src/mcp_vectordb/core/document_embedding.py
+  s_e4ab94f0a4296a::t_548991c40da91e 1-156
+requirements.txt
+  s_e4ab94f0a4296a::t_4c16c2e392082e 11-12
+requirements-dev.txt
+  s_e4ab94f0a4296a::t_6ca8f67e89c1c8 9-10
+docs/generate-document-embedding/changelog.md
+  s_e4ab94f0a4296a::t_bc834aabe05630 12-16
+  s_e4ab94f0a4296a::t_1355df89683e84 1-6
+  s_e4ab94f0a4296a::t_641a9cd6a2248d 17-21
+  s_e4ab94f0a4296a::t_30197885848e0f 7-11
+docs/generate-document-embedding/manifest.md
+  s_e4ab94f0a4296a::t_f80f509eb461ac 6
+  s_e4ab94f0a4296a::t_17eec288d5330e 1-5,8
+  s_e4ab94f0a4296a::t_84c5b5ea023787 7
+docs/generate-document-embedding/spec.md
+  s_e4ab94f0a4296a::t_494c4b0cdf9c73 1,3-45,62-98,104-125
+  s_e4ab94f0a4296a::t_8b14c1c059c906 46-61
+  s_e4ab94f0a4296a::t_ea1757abea26bb 2
+  s_e4ab94f0a4296a::t_1b3b98d6449eb0 99-103
+scripts/generate_multimodal_fixtures.py
+  s_e4ab94f0a4296a::t_7c5de7d1425ba8 57-68,72,78,80
+  s_e4ab94f0a4296a::t_1c3ab7ca9a76f1 1-23,25,35-56,69-71,73-77,79,81-163
+  s_e4ab94f0a4296a::t_a647ac828ce24d 24,26-34
+src/mcp_vectordb/tools/__init__.py
+  s_e4ab94f0a4296a::t_5c6b0b20f58bd5 6
+  s_e4ab94f0a4296a::t_296a929806b781 7
+README.md
+  s_e4ab94f0a4296a::t_6d43c0abff2380 24-26
+tests/fixtures/multimodal_sample.pdf
+  s_e4ab94f0a4296a::t_9895faff72458e 1-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "1ea138ddc99a5f19d4ec64c9a9e8962c80392554",
+  "prompts": {},
+  "sessions": {
+    "s_e4ab94f0a4296a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "514c5fe5-21ba-4301-8fed-d8fa9fa405b3",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Gowtham Girithar Srirangasamy <gowthamgirithar@gmail.com>"
+    }
+  }
+}
