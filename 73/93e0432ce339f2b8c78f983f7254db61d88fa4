@@ -1,0 +1,22 @@
+src/mcp_vectordb/core/document_embedding.py
+  s_ea4e7014980817::t_f382665686775d 183-190
+  s_ea4e7014980817::t_b40ede18bf6623 23,26-27,30
+  s_ea4e7014980817::t_5ddaf08d09fa06 31
+  s_ea4e7014980817::t_fecba0d1ae3b55 191-193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "7393e0432ce339f2b8c78f983f7254db61d88fa4",
+  "prompts": {},
+  "sessions": {
+    "s_ea4e7014980817": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3e7f4f85-3be1-4f14-971b-0e78f8bc091f",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "Gowtham Girithar Srirangasamy <gowthamgirithar@gmail.com>"
+    }
+  }
+}
