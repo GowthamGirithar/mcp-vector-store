@@ -57,7 +57,7 @@
 - `src/mcp_vectordb/tools/document_embedding.py`
   - `@mcp.tool() async def generate_document_embedding(file_path, ctx=None) -> str`:
     validates the file (`validate_file_path` with `MULTIMODAL_SUPPORTED_EXTENSIONS` and
-    `settings.document.max_file_size_mb`), calls `extract_multimodal`, logs full per-element
+    `settings.document.max_file_size_mb`), calls `extract_multimodal_document`, logs full per-element
     detail via `logger.debug` (matching `store_document`'s per-chunk debug logging), and
     returns a summary string with counts per category, e.g.:
     ```

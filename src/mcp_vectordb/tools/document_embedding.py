@@ -17,7 +17,7 @@ from ..config.config import get_settings
 from ..core.document_embedding import (
     DocumentEmbeddingParseError,
     MULTIMODAL_SUPPORTED_EXTENSIONS,
-    extract_multimodal,
+    extract_multimodal_document,
 )
 from ..utils.validation import validate_file_path
 from ..utils.exceptions import ValidationError
@@ -52,7 +52,7 @@ async def generate_document_embedding(file_path: str, ctx: Context = None) -> st
         if ctx:
             await ctx.info(f"Starting document extraction: {validated_file_path}")
 
-        result = extract_multimodal(validated_file_path)
+        result = extract_multimodal_document(validated_file_path)
 
         for element in result.text_elements + result.table_elements + result.image_elements:
             logger.debug(

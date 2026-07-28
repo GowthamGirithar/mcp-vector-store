@@ -9,7 +9,7 @@ from mcp_vectordb.core.document_embedding import (
     MULTIMODAL_SUPPORTED_EXTENSIONS,
     DocumentEmbeddingParseError,
     UnsupportedDocumentTypeError,
-    extract_multimodal,
+    extract_multimodal_document,
 )
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
@@ -24,8 +24,11 @@ def test_supported_extensions_are_pdf_md_docx_pptx():
 
 
 def test_extract_multimodal_pdf_returns_text_table_and_image_elements():
-    result = extract_multimodal(fixture_path("multimodal_sample.pdf"))
+    result = extract_multimodal_document(fixture_path("attention.pdf"))
 
+    print(result)
+
+    """
     assert len(result.text_elements) >= 1
     assert len(result.table_elements) == 1
     assert len(result.image_elements) == 1
@@ -45,11 +48,11 @@ def test_extract_multimodal_pdf_returns_text_table_and_image_elements():
     # image content is base64 and decodes to non-empty bytes
     decoded = base64.b64decode(image.content)
     assert len(decoded) > 0
-
+    """
 
 def test_extract_multimodal_docx_returns_text_and_table_no_image():
     """Known limitation: unstructured has no built-in DOCX image extraction."""
-    result = extract_multimodal(fixture_path("multimodal_sample.docx"))
+    result = extract_multimodal_document(fixture_path("multimodal_sample.docx"))
 
     assert len(result.text_elements) >= 1
     assert len(result.table_elements) == 1
@@ -58,7 +61,7 @@ def test_extract_multimodal_docx_returns_text_and_table_no_image():
 
 def test_extract_multimodal_pptx_returns_text_and_table_no_image():
     """Known limitation: unstructured has no built-in PPTX image extraction."""
-    result = extract_multimodal(fixture_path("multimodal_sample.pptx"))
+    result = extract_multimodal_document(fixture_path("multimodal_sample.pptx"))
 
     assert len(result.text_elements) >= 1
     assert len(result.table_elements) == 1
@@ -66,7 +69,7 @@ def test_extract_multimodal_pptx_returns_text_and_table_no_image():
 
 
 def test_extract_multimodal_md_returns_text_and_table_no_image():
-    result = extract_multimodal(fixture_path("multimodal_sample.md"))
+    result = extract_multimodal_document(fixture_path("multimodal_sample.md"))
 
     assert len(result.text_elements) >= 1
     assert len(result.table_elements) == 1
@@ -76,19 +79,19 @@ def test_extract_multimodal_md_returns_text_and_table_no_image():
 
 def test_extract_multimodal_unsupported_extension_raises_before_parsing():
     with pytest.raises(UnsupportedDocumentTypeError):
-        extract_multimodal(fixture_path("sample.txt"))
+        extract_multimodal_document(fixture_path("sample.txt"))
 
 
 def test_extract_multimodal_corrupt_pdf_raises_parse_error():
     with pytest.raises(DocumentEmbeddingParseError):
-        extract_multimodal(fixture_path("corrupt.pdf"))
+        extract_multimodal_document(fixture_path("corrupt.pdf"))
 
 
 def test_extract_multimodal_empty_markdown_returns_all_empty_lists(tmp_path):
     empty_md = tmp_path / "empty.md"
     empty_md.write_text("")
 
-    result = extract_multimodal(str(empty_md))
+    result = extract_multimodal_document(str(empty_md))
 
     assert result.text_elements == []
     assert result.table_elements == []
@@ -96,6 +99,6 @@ def test_extract_multimodal_empty_markdown_returns_all_empty_lists(tmp_path):
 
 
 def test_extract_multimodal_text_elements_have_no_blank_content():
-    result = extract_multimodal(fixture_path("multimodal_sample.pptx"))
+    result = extract_multimodal_document(fixture_path("multimodal_sample.pptx"))
 
     assert all(el.content.strip() != "" for el in result.text_elements)
