@@ -20,9 +20,14 @@ This module implements extraction only — no embedding generation, no
 chunking, and no vector DB storage (see docs/generate-document-embedding/).
 """
 
+import logging
 from typing import List, NamedTuple, Optional
 
+from sympy import false, true
+from unstructured.chunking.title import chunk_by_title
 from unstructured.partition.auto import partition
+
+logger = logging.getLogger(__name__)
 
 MULTIMODAL_SUPPORTED_EXTENSIONS = {".pdf", ".md", ".docx", ".pptx"}
 
@@ -51,7 +56,10 @@ class ExtractedElement(NamedTuple):
     element_type: str
     page_number: Optional[int]
     content: str
+    heading_path: str
     html: Optional[str] = None
+
+
 
 
 class MultimodalExtractionResult(NamedTuple):
@@ -62,7 +70,7 @@ class MultimodalExtractionResult(NamedTuple):
     image_elements: List[ExtractedElement]
 
 
-def extract_multimodal(file_path: str) -> MultimodalExtractionResult:
+def extract_multimodal_document(file_path: str) -> MultimodalExtractionResult:
     """Partition `file_path` with `unstructured` into text/table/image elements.
 
     Args:
@@ -91,7 +99,8 @@ def extract_multimodal(file_path: str) -> MultimodalExtractionResult:
     try:
         elements = partition(
             filename=file_path,
-            infer_table_structure=True,
+            infer_table_structure=True, # to get the table as html
+            strategy="hi_res", # to use the layout detection
             extract_image_block_types=["Image"],
             extract_image_block_to_payload=True,
         )
@@ -103,19 +112,45 @@ def extract_multimodal(file_path: str) -> MultimodalExtractionResult:
     text_elements: List[ExtractedElement] = []
     table_elements: List[ExtractedElement] = []
     image_elements: List[ExtractedElement] = []
+    active_headings = {}
 
+    """
     for element in elements:
         page_number = getattr(element.metadata, "page_number", None)
         element_type = type(element).__name__
 
+
+        current_path = ""
+        if element_type == "Title" and element.text.strip():
+            # Get the depth (default to 1 if unstructured couldn't figure it out)
+            depth = getattr(element.metadata, "category_depth", 1)
+            if depth is None:
+                depth = 1
+
+            # Save this heading at its specific depth level
+            active_headings[depth] = element.text.strip()
+
+            keys_to_remove = [k for k in active_headings.keys() if k > depth]
+            for k in keys_to_remove:
+                del active_headings[k]
+
+            current_path = " > ".join(
+                [active_headings[k] for k in sorted(active_headings.keys())]
+            )
+
         if element.category == _TABLE_CATEGORY:
+            html_content = getattr(element.metadata, "text_as_html", None)
+            raw_text = getattr(element, "text", None)
+            table_content: str = html_content or raw_text or ""
+
             table_elements.append(
                 ExtractedElement(
                     category="table",
                     element_type=element_type,
                     page_number=page_number,
-                    content=element.text,
+                    content=table_content,
                     html=getattr(element.metadata, "text_as_html", None),
+                    heading_path= current_path,
                 )
             )
         elif element.category == _IMAGE_CATEGORY:
@@ -128,19 +163,57 @@ def extract_multimodal(file_path: str) -> MultimodalExtractionResult:
                     element_type=element_type,
                     page_number=page_number,
                     content=image_base64,
+                    heading_path= current_path,
                 )
             )
         else:
             if not element.text or not element.text.strip():
                 continue
+
             text_elements.append(
                 ExtractedElement(
                     category="text",
                     element_type=element_type,
                     page_number=page_number,
                     content=element.text,
+                    heading_path= current_path,
                 )
             )
+
+    logger.info(
+        "Extracted document '%s': %d text, %d table, %d image elements",
+        file_path,
+        len(text_elements),
+        len(table_elements),
+        len(image_elements),
+    )
+    """
+
+    elementsChunks = chunk_by_title(elements,
+                                    max_characters= 5000, # maximum character for the chunk
+                                    new_after_n_chars= 1000,
+                                    combine_text_under_n_chars=0 , # to disable merge of different heading
+                                    isolate_table= false)
+
+    for i, chunk in enumerate(elementsChunks):
+        if i in (0,1):
+            print(f"THE CHUNK IS{i}")
+            for orig_el in chunk.metadata.orig_elements:
+                print(orig_el.text)
+
+                # Check for Table HTML
+                if orig_el.category == "Table" and orig_el.metadata.text_as_html:
+                    print("--- Found Table HTML ---")
+                    print(orig_el.metadata.text_as_html)
+
+                # Check for Base64 Encoded Image Data
+                if orig_el.category == _IMAGE_CATEGORY:
+                    print("--- Found Base64 Image Payload ---")
+                    print(f"MIME Type: {orig_el.metadata.image_mime_type}")
+                    print(f"Base64 String: {orig_el.metadata.image_base64}")
+
+
+
 
     return MultimodalExtractionResult(
         text_elements=text_elements,
