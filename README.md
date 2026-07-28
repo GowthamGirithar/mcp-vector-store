@@ -21,6 +21,9 @@ I have developed this for storing the user interactions as it is must for contex
 
 - Python 3.8+
 - pip
+- `tesseract` and `poppler` (system packages, required by `unstructured` for PDF
+  extraction used by the `generate_document_embedding` tool). On macOS:
+  `brew install tesseract poppler`.
 
 ### Setup
 
