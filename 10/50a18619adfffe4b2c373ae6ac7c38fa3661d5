@@ -1,0 +1,27 @@
+src/mcp_vectordb/core/document_embedding.py
+  s_487dd9e989a57e::t_2387068e18b425 194
+src/mcp_vectordb/embedding/base.py
+  s_487dd9e989a57e::t_2387068e18b425 1-13
+src/mcp_vectordb/embedding/cache.py
+  s_487dd9e989a57e::t_2387068e18b425 1-64
+src/mcp_vectordb/embedding/local_service.py
+  s_487dd9e989a57e::t_2387068e18b425 1-31
+src/mcp_vectordb/embedding/__init__.py
+  s_487dd9e989a57e::t_2387068e18b425 1-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "1050a18619adfffe4b2c373ae6ac7c38fa3661d5",
+  "prompts": {},
+  "sessions": {
+    "s_487dd9e989a57e": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ff52417e-c04e-44fe-9e7c-e8c9bbe160d4",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    }
+  }
+}
