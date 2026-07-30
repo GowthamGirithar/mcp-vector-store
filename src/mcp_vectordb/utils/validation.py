@@ -53,9 +53,9 @@ def validate_metadata(metadata: Optional[Dict[str, Any]]) -> Optional[Dict[str, 
     reserved_keys = {
         "id", "embedding", "document", "text",
         # Reserved for document-upload-tool auto-generated metadata fields.
-        "document_id", "source_filename", "file_type",
+        "chunk_id", "document_id", "source_filename", "file_type",
         "page_number", "chunk_index", "total_chunks", "uploaded_at",
-        "breadcrumb",
+        "breadcrumb", "has_table", "has_image",
     }
     for key in metadata.keys():
         if key in reserved_keys:

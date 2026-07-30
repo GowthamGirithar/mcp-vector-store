@@ -29,6 +29,10 @@ class EmbeddingCache:
         self._cache[text] = embedding
         self._access_order.append(text)
 
+    def clear(self) -> None:
+        self._cache.clear()
+        self._access_order.clear()
+
 
 class CachedEmbeddingService(EmbeddingService):
     """Decorator adding cache support to any EmbeddingService."""
@@ -36,6 +40,10 @@ class CachedEmbeddingService(EmbeddingService):
     def __init__(self, service: EmbeddingService, cache_size: int = 1000):
         self.service = service
         self.cache = EmbeddingCache(cache_size)
+
+    @property
+    def dimension(self) -> int:
+        return self.service.dimension
 
     async def generate_embedding(self, text: str) -> List[float]:
         if cached := self.cache.get(text):

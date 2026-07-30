@@ -57,24 +57,5 @@ class VectorDBFactory:
             raise ConfigurationError(f"Adapter creation failed: {e}")
     
     
-    @classmethod
-    def get_supported_providers(cls) -> list[str]:
-        """Get list of supported vector database providers.
-        
-        Returns:
-            List of provider names
-        """
-        return list(cls._adapters.keys())
-    
-    @classmethod
-    def is_provider_supported(cls, provider: str) -> bool:
-        """Check if a provider is supported.
-        
-        Args:
-            provider: Provider name
-            
-        Returns:
-            True if supported
-        """
-        return provider.lower() in cls._adapters
+
     

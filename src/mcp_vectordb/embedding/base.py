@@ -11,3 +11,9 @@ class EmbeddingService(ABC):
     @abstractmethod
     async def generate_embeddings(self, texts: List[str]) -> List[List[float]]:
         pass
+
+    @property
+    @abstractmethod
+    def dimension(self) -> int:
+        """Get the dimension of the embedding vectors."""
+        pass

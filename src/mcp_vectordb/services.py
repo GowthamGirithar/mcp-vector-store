@@ -4,7 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from .config.config import get_settings
-from .core.embedding import EmbeddingServiceFactory, CachedEmbeddingService
+from .embedding import create_embedding_service
 from .adapters.factory import VectorDBFactory
 
 logger = logging.getLogger(__name__)
@@ -30,8 +30,13 @@ async def setup_services(app):
         logger.info(f"Loaded configuration for provider: {settings.vector_db.provider}")
         
         # Initialize embedding service
-        embedding_service_impl = EmbeddingServiceFactory.create_service(settings.embedding)
-        embedding_service = CachedEmbeddingService(embedding_service_impl, cache_size=1000)
+        embedding_service = create_embedding_service(
+            provider=settings.embedding.provider,
+            model=settings.embedding.model,
+            api_key=settings.embedding.api_key,
+            enable_cache=True,
+            cache_size=1000,
+        )
         logger.info(f"Initialized embedding service: {settings.embedding.provider}")
         
         # Initialize vector database adapter

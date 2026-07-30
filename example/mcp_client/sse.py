@@ -6,31 +6,31 @@ import logging
 logger = logging.getLogger('mcp_client')
 
 async def main():
-   
+
     async with sse_client(f"http://localhost:8000/sse") as(
-        read_stream,
-        write_stream
-    ):
-        async with ClientSession(
             read_stream,
             write_stream
+    ):
+        async with ClientSession(
+                read_stream,
+                write_stream
         ) as session:
             await session.initialize()
             print("Session initialized, ready to call tools.")
             print("\n")
-           
+
             tool_list = await session.list_tools()
-            print(f"Tool result: {tool_list}")  
+            print(f"Tool result: {tool_list}")
             print("\n")
-            
-            res = await session.call_tool(name="store_text", arguments={"text":"hey my name is gowtham", "collection":"memory", "metadata" :{"user":"gowtham"}}, ) 
-            print(f"Tool result: {res}")    
+
+            res = await session.call_tool(name="store_text", arguments={"text":"hey my name is gowtham", "collection":"memory", "metadata" :{"user":"gowtham"}}, )
+            print(f"Tool result: {res}")
             print("\n")
-            
-            search_res = await session.call_tool(name="similarity_search", arguments={"query":"what is my name", "collection":"memory"})    
-            print(f"Tool result: {search_res}")    
+
+            search_res = await session.call_tool(name="similarity_search", arguments={"query":"what is my name", "collection":"memory"})
+            print(f"Tool result: {search_res}")
             print("\n")
-            
+
 
 
 

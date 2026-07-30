@@ -9,9 +9,8 @@ from ..services import get_vector_db, get_embedding_service
 from ..config.config import get_settings
 from ..utils.validation import validate_text, validate_collection_name, validate_top_k
 from ..utils.exceptions import VectorDBError, ValidationError
-from ..core.bm25 import BM25Index
-from ..core.fusion import reciprocal_rank_fusion
-from ..core.reranker import rerank as cross_encoder_rerank
+from ..search import BM25Index, reciprocal_rank_fusion
+from ..search import rerank as cross_encoder_rerank
 
 logger = logging.getLogger(__name__)
 

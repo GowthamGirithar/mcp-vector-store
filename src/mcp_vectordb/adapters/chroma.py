@@ -10,7 +10,7 @@ from chromadb.config import Settings as ChromaSettings
 from chromadb.api.models.Collection import Collection
 
 from .base import BaseVectorDBAdapter
-from ..core.document import Document, SearchResult
+from ..models.document import Document, SearchResult
 from ..utils.exceptions import VectorDBError, ConnectionError, CollectionError
 from ..config.config import VectorDBConfig
 

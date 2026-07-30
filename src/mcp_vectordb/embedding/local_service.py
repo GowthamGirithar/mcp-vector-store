@@ -13,7 +13,11 @@ class SentenceTransformerEmbeddingService(EmbeddingService):
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         self.model_name_str = model_name
         self._model: SentenceTransformer = SentenceTransformer(self.model_name_str)
+        self._dimension = self._model.get_sentence_embedding_dimension()
 
+    @property
+    def dimension(self) -> int:
+        return self._dimension
 
     async def generate_embedding(self, text: str) -> List[float]:
         loop = asyncio.get_running_loop()

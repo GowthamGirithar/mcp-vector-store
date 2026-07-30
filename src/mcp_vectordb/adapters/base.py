@@ -3,8 +3,8 @@
 import logging
 from abc import ABC
 from typing import List, Dict, Any, Optional
-from ..core.document import Document, SearchResult
-from ..core.interfaces import VectorDBAdapter
+from ..models.document import Document, SearchResult
+from .interfaces import VectorDBAdapter
 from ..utils.exceptions import VectorDBError, ConnectionError
 
 logger = logging.getLogger(__name__)

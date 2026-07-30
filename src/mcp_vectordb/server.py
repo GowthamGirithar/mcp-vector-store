@@ -31,7 +31,3 @@ def run_server() -> None:
     settings = get_settings()
     get_mcp().run(transport=settings.server.transport) # stdio, sse, streamable-http
 
-if __name__ == "__main__":
-    run_server()
-
-
