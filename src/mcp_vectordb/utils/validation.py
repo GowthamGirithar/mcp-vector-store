@@ -53,8 +53,9 @@ def validate_metadata(metadata: Optional[Dict[str, Any]]) -> Optional[Dict[str, 
     reserved_keys = {
         "id", "embedding", "document", "text",
         # Reserved for document-upload-tool auto-generated metadata fields.
-        "document_id", "source_filename", "file_type",
+        "chunk_id", "document_id", "source_filename", "file_type",
         "page_number", "chunk_index", "total_chunks", "uploaded_at",
+        "breadcrumb", "has_table", "has_image",
     }
     for key in metadata.keys():
         if key in reserved_keys:
@@ -134,30 +135,6 @@ def validate_top_k(top_k: int, max_k: int = 1000) -> int:
         raise ValidationError(f"top_k ({top_k}) exceeds maximum ({max_k})")
     
     return top_k
-
-
-def validate_document_id(doc_id: str) -> str:
-    """Validate document ID.
-    
-    Args:
-        doc_id: The document ID to validate
-        
-    Returns:
-        The validated document ID
-        
-    Raises:
-        ValidationError: If document ID is invalid
-    """
-    if not isinstance(doc_id, str):
-        raise ValidationError("Document ID must be a string")
-    
-    if not doc_id.strip():
-        raise ValidationError("Document ID cannot be empty")
-    
-    if len(doc_id) > 255:
-        raise ValidationError("Document ID cannot exceed 255 characters")
-    
-    return doc_id.strip()
 
 
 def validate_file_path(path: str, allowed_extensions: set, max_file_size_mb: float) -> str:

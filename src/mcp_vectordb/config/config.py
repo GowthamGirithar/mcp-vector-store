@@ -2,8 +2,11 @@
 
 import os
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
+
+from ..utils.validation import validate_chunk_size, validate_chunk_overlap
+from ..utils.exceptions import ValidationError
 
 # Load environment variables from .env file
 load_dotenv()
@@ -35,6 +38,31 @@ class DocumentConfig(BaseModel):
     chunk_overlap: int = Field(default=50)
     max_file_size_mb: float = Field(default=20.0)
 
+    @model_validator(mode="after")
+    def _validate_chunking(self) -> "DocumentConfig":
+        try:
+            validate_chunk_size(self.chunk_size)
+            validate_chunk_overlap(self.chunk_overlap, self.chunk_size)
+        except ValidationError as e:
+            raise ValueError(e.message)
+        return self
+
+
+class SearchConfig(BaseModel):
+    """Search/retrieval tuning configuration.
+
+    default_top_k and default_min_score are per-query fallbacks: tools still
+    accept them as optional call-time overrides. The RRF/reranker knobs are
+    deployment-level tuning and are intentionally not exposed as tool inputs.
+    """
+    default_top_k: int = Field(default=10)
+    default_min_score: Optional[float] = Field(default=None)
+    rrf_k: int = Field(default=60)
+    vector_weight: float = Field(default=1.0)
+    bm25_weight: float = Field(default=1.0)
+    reranker_model: str = Field(default="cross-encoder/ms-marco-MiniLM-L-6-v2")
+    use_reranker: bool = Field(default=False)
+
 
 class Settings(BaseModel):
     """Main settings class loaded from environment variables."""
@@ -42,6 +70,7 @@ class Settings(BaseModel):
     embedding: EmbeddingConfig
     server: ServerConfig
     document: DocumentConfig
+    search: SearchConfig
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -66,10 +95,21 @@ class Settings(BaseModel):
         document = DocumentConfig(
             chunk_size=int(os.getenv("DOCUMENT_CHUNK_SIZE", "500")),
             chunk_overlap=int(os.getenv("DOCUMENT_CHUNK_OVERLAP", "50")),
-            max_file_size_mb=float(os.getenv("DOCUMENT_MAX_FILE_SIZE_MB", "20.0"))
+            max_file_size_mb=float(os.getenv("DOCUMENT_MAX_FILE_SIZE_MB", "20.0")),
         )
 
-        return cls(vector_db=vector_db, embedding=embedding, server=server, document=document)
+        default_min_score_env = os.getenv("SEARCH_DEFAULT_MIN_SCORE")
+        search = SearchConfig(
+            default_top_k=int(os.getenv("SEARCH_DEFAULT_TOP_K", "10")),
+            default_min_score=float(default_min_score_env) if default_min_score_env is not None else None,
+            rrf_k=int(os.getenv("SEARCH_RRF_K", "60")),
+            vector_weight=float(os.getenv("SEARCH_VECTOR_WEIGHT", "1.0")),
+            bm25_weight=float(os.getenv("SEARCH_BM25_WEIGHT", "1.0")),
+            reranker_model=os.getenv("SEARCH_RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2"),
+            use_reranker=os.getenv("SEARCH_USE_RERANKER", "false").lower() in ("1", "true", "yes")
+        )
+
+        return cls(vector_db=vector_db, embedding=embedding, server=server, document=document, search=search)
 
 
 # Global settings instance

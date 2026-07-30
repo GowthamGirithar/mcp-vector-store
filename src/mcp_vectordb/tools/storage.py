@@ -1,30 +1,37 @@
 """Storage tools for the MCP Vector Database Server."""
 
+import os
+import uuid
+from datetime import datetime
 from typing import Any, Dict, Optional
 from mcp.server.fastmcp import Context
 
 from ..server import mcp
 from ..services import get_vector_db, get_embedding_service
-from ..core.document import Document
-from ..utils.validation import validate_text, validate_metadata, validate_collection_name
+from ..config.config import get_settings
+from ..models.document import Document
+from ..utils.validation import (
+    validate_text,
+    validate_metadata,
+    validate_collection_name,
+    validate_file_path,
+)
 from ..utils.exceptions import VectorDBError, ValidationError
 
 
-@mcp.tool()
+@mcp.tool(description="Store text in the vector database with automatic embedding generation")
 async def store_text(
     text: str,
     collection: str = "documents",
     metadata: Optional[Dict[str, Any]] = None,
-    document_id: Optional[str] = None,
     ctx: Context = None
 ) -> str:
     """Store text documents in the vector database with automatic embedding generation.
-    
+
     Args:
         text: The text content to store
         collection: Collection name to store the document in (default: "documents")
         metadata: Optional metadata for the document
-        document_id: Optional custom document ID (auto-generated if not provided)
         ctx: FastMCP context for logging and progress reporting
         
     Returns:
@@ -66,9 +73,6 @@ async def store_text(
             embedding=embedding,
             metadata=validated_metadata
         )
-        
-        if document_id:
-            document.id = document_id
         
         if document.metadata is None:
             document.metadata = {}

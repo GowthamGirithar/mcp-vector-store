@@ -12,13 +12,13 @@ async def main():
     # async with - is async version and with is resoure managenemtn
     # as -> return streams ans assigned to the variable
     async with streamablehttp_client(f"http://localhost:8000/mcp") as(
-        read_stream,
-        write_stream,
-        session_callback,
+            read_stream,
+            write_stream,
+            session_callback,
     ):
         async with ClientSession(
-            read_stream,
-            write_stream
+                read_stream,
+                write_stream
         ) as session:
             id_before = session_callback()
             print(f"Session ID before init: {id_before}")
@@ -28,13 +28,13 @@ async def main():
             print("Session initialized, ready to call tools.")
             print("\n")
             tool_list = await session.list_tools()
-            print(f"Tool result: {tool_list}")  
+            print(f"Tool result: {tool_list}")
             print("\n")
-            res = await session.call_tool(name="store_text", arguments={"text":"hey my name is gowtham", "collection":"memory", "metadata" :{"user":"gowtham"}}, ) 
-            print(f"Tool result: {res}")    
+            res = await session.call_tool(name="store_text", arguments={"text":"hey my name is gowtham", "collection":"memory", "metadata" :{"user":"gowtham"}}, )
+            print(f"Tool result: {res}")
             print("\n")
-            search_res = await session.call_tool(name="similarity_search", arguments={"query":"what is my name", "collection":"memory", "top_k":10})    
-            print(f"Tool result: {search_res}")    
+            search_res = await session.call_tool(name="similarity_search", arguments={"query":"what is my name", "collection":"memory"})
+            print(f"Tool result: {search_res}")
             print("\n")
 
 
@@ -48,8 +48,8 @@ if __name__ == "__main__":
 # Client create the session and session ID created - "POST /mcp HTTP/1.1" 202 Accepted - Session Start
 # Lifecycle hook executed
 # Client connects to /mcp, session ID assigned
-# "GET /mcp HTTP/1.1" 200 OK - client listening for responses or events from the server. 
-    # - Open once, keep connection open; Since it is bidirectionals, POST is responsbile for sending the request and GET which listening to connection responsible for listeing to response
+# "GET /mcp HTTP/1.1" 200 OK - client listening for responses or events from the server.
+# - Open once, keep connection open; Since it is bidirectionals, POST is responsbile for sending the request and GET which listening to connection responsible for listeing to response
 # ListTools  POST /mcp & CallTool POST /mcp requests are processed
 # Client shutdown - Session ends DELETE /mcp client terminate the session
 # Lifecycle hook executed - cleanup

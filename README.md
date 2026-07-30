@@ -77,7 +77,6 @@ Store text documents with automatic embedding generation.
 - `text` (required): The text content to store
 - `collection` (optional): Collection name (default: "documents")
 - `metadata` (optional): Custom metadata dictionary
-- `document_id` (optional): Custom document ID
 
 
 #### 2. `similarity_search`
@@ -93,18 +92,21 @@ Perform semantic similarity search to find relevant documents.
 - `min_score` (optional): Minimum similarity score threshold (0.0-1.0)
 
 
-#### 3. `upload_document`
+#### 3. `store_document`
 Upload a document (PDF, TXT, or MD), chunk it, and store the chunks with automatic embedding generation.
 
 **Parameters:**
 - `file_path` (required): Path to the document file to upload (`.pdf`, `.txt`, `.md`)
 - `collection` (optional): Collection name to store the chunks in (default: "documents")
 - `metadata` (optional): Custom metadata dictionary applied to every chunk
-- `document_id` (optional): Custom document ID shared by all chunks (auto-generated if not provided)
-- `chunk_size` (optional): Maximum characters per chunk (defaults to the configured `document.chunk_size`)
-- `chunk_overlap` (optional): Overlap characters between hard-window chunks (defaults to the configured `document.chunk_overlap`)
 
-Each stored chunk is tagged with metadata: `document_id`, `source_filename`, `file_type`, `page_number` (`None` for `.txt`/`.md`), `chunk_index`, `total_chunks`, and `uploaded_at`.
+Chunking is fully automatic — there is no caller-configurable strategy. Each document goes through:
+1. **Header-based splitting**: Markdown text with `#`-style headings is split into sections along the heading hierarchy (e.g. `Intro > Background`). Text with no headings (`.txt`, headingless `.md`) and PDFs are split per page instead (layout-aware extraction).
+2. **Size check**: any section whose approximate token count exceeds `document.chunk_size` is recursively split (separator cascade with a hard-window fallback) using 10% of `chunk_size` as overlap; smaller sections are kept whole.
+
+`chunk_size` is not caller-configurable — it is always sourced from the configured `document.chunk_size`.
+
+Each stored chunk is tagged with metadata: `document_id`, `source_filename`, `file_type`, `page_number` (`None` for `.txt`/`.md`), `chunk_index`, `total_chunks`, `uploaded_at`, and `breadcrumb` (e.g. `"report.md > Intro > Background"` or `"sample.pdf > page 2"`).
 
 
 ### Client Examples

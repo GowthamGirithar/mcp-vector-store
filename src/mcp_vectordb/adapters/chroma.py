@@ -10,11 +10,46 @@ from chromadb.config import Settings as ChromaSettings
 from chromadb.api.models.Collection import Collection
 
 from .base import BaseVectorDBAdapter
-from ..core.document import Document, SearchResult
+from ..models.document import Document, SearchResult
 from ..utils.exceptions import VectorDBError, ConnectionError, CollectionError
 from ..config.config import VectorDBConfig
 
 logger = logging.getLogger(__name__)
+
+
+def _distance_to_score(distance: float, space: str) -> float:
+    """Convert a ChromaDB distance into a 0-1 similarity score.
+
+    The conversion depends on the collection's actual ``hnsw:space``, which is
+    fixed at collection-creation time and may differ from the space newly
+    created collections use. ``score = 1 - distance`` is only correct for
+    cosine distance; collections created with the (previous) default ``l2``
+    space return squared Euclidean distance, which is unbounded and yields
+    meaningless/negative scores if treated as cosine.
+    """
+    if space == "cosine":
+        return 1.0 - distance
+    if space == "l2":
+        # Squared L2 distance on unit-normalized embeddings equals
+        # 2 * (1 - cosine_similarity), so this recovers cosine similarity.
+        return 1.0 - (distance / 2.0)
+    if space == "ip":
+        return distance
+    return 1.0 - distance
+
+
+def _build_where_clause(filters: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Translate a flat metadata filter dict into a ChromaDB ``where`` clause.
+
+    ChromaDB requires a single top-level operator per query: passing more than
+    one key directly (e.g. ``{"a": "x", "b": "1"}``) raises "expected where to
+    have exactly one operator". Multiple keys must be combined with ``$and``.
+    """
+    if not filters:
+        return None
+    if len(filters) == 1:
+        return filters
+    return {"$and": [{key: value} for key, value in filters.items()]}
 
 
 class ChromaAdapter(BaseVectorDBAdapter):
@@ -94,7 +129,8 @@ class ChromaAdapter(BaseVectorDBAdapter):
             # Prepare collection metadata
             collection_metadata = {
                 "dimension": dimension,
-                "created_at": datetime.utcnow().isoformat()
+                "created_at": datetime.utcnow().isoformat(),
+                "hnsw:space": "cosine"
             }
             if metadata:
                 collection_metadata.update(metadata)
@@ -240,8 +276,9 @@ class ChromaAdapter(BaseVectorDBAdapter):
             }
             
             # Add filters if provided
-            if filters:
-                query_params["where"] = filters
+            where_clause = _build_where_clause(filters)
+            if where_clause:
+                query_params["where"] = where_clause
             
             # Perform search
             loop = asyncio.get_event_loop()
@@ -252,16 +289,17 @@ class ChromaAdapter(BaseVectorDBAdapter):
             
             # Convert results to SearchResult objects
             search_results = []
-            
+            space = (chroma_collection.metadata or {}).get("hnsw:space", "l2")
+
             if results["ids"] and results["ids"][0]:  # Check if we have results
                 for i in range(len(results["ids"][0])):
                     doc_id = results["ids"][0][i]
                     distance = results["distances"][0][i] if results["distances"] else None
                     document_text = results["documents"][0][i] if results["documents"] else ""
                     metadata = results["metadatas"][0][i] if results["metadatas"] else {}
-                    
-                    # Convert distance to similarity score (ChromaDB uses cosine distance)
-                    score = 1.0 - distance if distance is not None else 1.0
+
+                    # Convert distance to similarity score based on the collection's actual space
+                    score = _distance_to_score(distance, space) if distance is not None else 1.0
                     
                     # Create Document object
                     doc_metadata = metadata.copy()
@@ -305,10 +343,16 @@ class ChromaAdapter(BaseVectorDBAdapter):
             if not results["ids"] or not results["ids"]:
                 return None
             
-            # Extract document data
+            # Extract document data. ``embeddings`` comes back as a numpy
+            # array when requested, whose truthiness is ambiguous for more
+            # than one element, so check length explicitly rather than
+            # relying on `if results["embeddings"]`.
             document_text = results["documents"][0] if results["documents"] else ""
             metadata = results["metadatas"][0] if results["metadatas"] else {}
-            embedding = results["embeddings"][0] if results["embeddings"] else None
+            embeddings = results.get("embeddings")
+            embedding = embeddings[0] if embeddings is not None and len(embeddings) > 0 else None
+            if embedding is not None:
+                embedding = list(embedding)
             
             # Create Document object
             doc_metadata = metadata.copy()
@@ -380,6 +424,49 @@ class ChromaAdapter(BaseVectorDBAdapter):
             logger.error(f"Failed to update document {doc_id} in ChromaDB collection {collection}: {e}")
             raise VectorDBError(f"Document update failed: {e}")
     
+    async def _get_all_documents_impl(
+        self, collection: str, filters: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
+        """Fetch every document (id + text + metadata, no embeddings) in ChromaDB."""
+        try:
+            chroma_collection = await self._get_collection(collection)
+
+            get_params: Dict[str, Any] = {"include": ["documents", "metadatas"]}
+            where_clause = _build_where_clause(filters)
+            if where_clause:
+                get_params["where"] = where_clause
+
+            loop = asyncio.get_event_loop()
+            results = await loop.run_in_executor(
+                None,
+                lambda: chroma_collection.get(**get_params)
+            )
+
+            documents = []
+            ids = results.get("ids") or []
+            for i, doc_id in enumerate(ids):
+                document_text = results["documents"][i] if results.get("documents") else ""
+                metadata = results["metadatas"][i] if results.get("metadatas") else {}
+
+                doc_metadata = (metadata or {}).copy()
+                created_at = doc_metadata.pop("created_at", datetime.utcnow().isoformat())
+                updated_at = doc_metadata.pop("updated_at", None)
+
+                documents.append(Document(
+                    id=doc_id,
+                    text=document_text or "",
+                    metadata=doc_metadata,
+                    created_at=datetime.fromisoformat(created_at),
+                    updated_at=datetime.fromisoformat(updated_at) if updated_at else None
+                ))
+
+            logger.debug(f"Fetched {len(documents)} documents from ChromaDB collection {collection}")
+            return documents
+
+        except Exception as e:
+            logger.error(f"Failed to fetch all documents from ChromaDB collection {collection}: {e}")
+            raise VectorDBError(f"Bulk document fetch failed: {e}")
+
     async def _count_documents_impl(self, collection: str) -> int:
         """Count documents in a ChromaDB collection."""
         try:
