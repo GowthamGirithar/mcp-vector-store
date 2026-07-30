@@ -191,7 +191,7 @@ def extract_multimodal_document(file_path: str) -> MultimodalExtractionResult:
 
     elementsChunks = chunk_by_title(elements,
                                     max_characters= 5000, # maximum character for the chunk
-                                    new_after_n_chars= 1000,
+                                    new_after_n_chars= 5000,
                                     combine_text_under_n_chars=0 , # to disable merge of different heading
                                     isolate_table= false)
 
