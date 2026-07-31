@@ -1,0 +1,23 @@
+README.md
+  s_4971fd59cc4f35::t_ca684249523ebb 7-8,14,18-36,39-48,51-69,72-85,88-106,109,111-130,133-151,154,158-168,173,176-178,186,210,214
+  s_4971fd59cc4f35::t_70326791d7e32f 3,5,9-11,15-17,110,155-157,171-172,174-175,179,181,183,191-193,195-197,199-202,204,208,212,216-220,222
+  s_4971fd59cc4f35::t_c00fb5debe42bb 190,206
+  s_4971fd59cc4f35::t_1115e455d93b81 184-185
+  s_4971fd59cc4f35::t_3606cb0abe96b1 207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "6e7c41b01d03d09c47db72d89850c9d2122a9920",
+  "prompts": {},
+  "sessions": {
+    "s_4971fd59cc4f35": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b51cc3e5-d1d9-4004-89bd-f8fae1d3034b",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    }
+  }
+}
