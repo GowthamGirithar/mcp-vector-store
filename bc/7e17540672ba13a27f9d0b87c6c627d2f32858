@@ -1,0 +1,23 @@
+docs/learning_experience.md
+  s_5179536701f6a6::t_8e1869f422ef42 69-73,75,82-86,88-89,91-107,110
+  s_5179536701f6a6::t_5d22cd6044500e 74,76-81
+  s_5179536701f6a6::t_352ab77bae12c2 87,90
+README.md
+  s_5179536701f6a6::t_7293f1008f17a7 224-229
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "bc7e17540672ba13a27f9d0b87c6c627d2f32858",
+  "prompts": {},
+  "sessions": {
+    "s_5179536701f6a6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5a357d28-9afd-475b-9f82-33ee599e9f9a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    }
+  }
+}
