@@ -221,6 +221,12 @@ Pick a client transport matching your server's `MCP_TRANSPORT` setting:
 
 See the example client scripts in the repo root for connection details for each transport.
 
+## Roadmap
+
+- **Image and table storage** – Extend document embedding to store images and tables extracted from documents, not just text chunks.
+- **Image and table retrieval** – Surface related images and tables alongside the relevant text when it's retrieved from the vector DB, instead of returning text-only results.
+- **Performance optimization for large documents** – Embedding large PDFs with mixed layouts (e.g., a 562-page document with varied content types) currently takes a long time, and the process isn't durable: a failure partway through forces a full retry rather than resuming from where it left off.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

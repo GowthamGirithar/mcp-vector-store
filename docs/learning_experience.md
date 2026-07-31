@@ -66,6 +66,45 @@ MCP supports both **stdio** and **streamable HTTP**. I’ve personally used the 
 
 ---
 
+## Retrieval Tuning: top-k, Similarity Scores, and Metadata
+
+While building out search on top of the vector DB, I picked up a few practical lessons about tuning retrieval quality:
+
+- **Don't limit `top_k` too aggressively** – it should be a moderate/mid value, not a very small number. Too small a `top_k` can silently drop relevant chunks before any scoring or filtering even gets a chance to work with them.
+- **`score` is a similarity score, not a relevance guarantee** – so the **minimum score threshold shouldn't be set too high**. An overly strict threshold filters out chunks that are still contextually useful just because they didn't hit a high similarity value.
+- **Metadata is critical, not optional** – it's what makes **filtering** possible (by source, section, date, type, etc.) on top of pure vector similarity. Good metadata design early on pays off heavily during retrieval.
+
+**Cosine vs. Euclidean distance:** both are common distance metrics for comparing embeddings, but they answer slightly different questions.
+- **Cosine similarity** measures the *angle* between two vectors, ignoring their magnitude — it captures whether two chunks point in the same "semantic direction," regardless of how long the vectors are.
+- **Euclidean distance** measures the *straight-line distance* between two vectors, so it's sensitive to magnitude as well as direction.
+
+For this project I **selected cosine similarity** for search, since embedding magnitude isn't meaningful for relevance here — what matters is semantic direction/orientation, not vector length. Cosine tends to be the more standard choice for text embedding search for this reason.
+
+---
+
+## Embedding Beyond Plain Text
+
+- **Images are not embedded the same way as text.** Normal text embedding models don't handle images — they need a separate multimodal/image embedding approach (or a captioning step before embedding as text). In practice, images get **sent as base64-encoded data to a multimodal model**, rather than run through a text-embedding pipeline directly.
+- **Structural embedding matters for structured documents:**
+  - For **Markdown**, structure (headings, sections) can and should be preserved during chunking/embedding rather than treating it as flat text.
+  - For **PDFs**, page structure matters too. Tools like **Unstructured** use a **model behind the scenes to partition** the document when the strategy is set to `hi_res` (or a `hi_res_model_name` is specified) — this gives better structural boundaries than naive text extraction, especially for documents with tables, columns, or mixed layouts.
+
+---
+
+## Fusion & Approximate Search Concepts
+
+When combining results from multiple retrieval methods (e.g., dense vector search + keyword/BM25 search), a few fusion concepts came up:
+
+- **Reciprocal Rank Fusion (RRF)** and its variant **Weighted Reciprocal Rank Fusion** – ways to merge ranked result lists from different retrievers into a single combined ranking.
+- **RRF only needs the *position/rank* of a document in each result list** – it doesn't care about the underlying similarity scores at all, which makes it useful for combining results from retrievers whose scores aren't directly comparable (e.g., BM25 score vs. cosine similarity).
+- **RRF uses a damping constant `k`** in the formula, roughly: `score = 1/(k + rank_1) + 1/(k + rank_2) + ...` summed across each retriever's rank for that document. The constant `k` softens the impact of rank differences (especially for lower-ranked, less certain results).
+
+On the vector index side:
+
+- **ANN (Approximate Nearest Neighbour)** search is what makes vector search scale — instead of an exact brute-force comparison against every vector, it trades a small amount of accuracy for large gains in speed. Concepts like **graph-based navigation (e.g., HNSW-style "highway" long-range links) and neighborhood exploration** are what let ANN algorithms jump close to the right region of the vector space quickly instead of scanning everything.
+
+---
+
 ## Final Thoughts
 
-This learning journey helped me appreciate how powerful and flexible **MCP** can be for building **context-aware AI systems**, especially when combined with **RAG** and **modern tool-calling capabilities**.
+This learning journey helped me appreciate how powerful and flexible **MCP** can be for building **context-aware AI systems**, especially when combined with **RAG** and **modern tool-calling capabilities**. The retrieval-tuning and fusion concepts above are the next layer down — they're what actually determine whether a RAG system returns *useful* context or just *technically similar* context.
