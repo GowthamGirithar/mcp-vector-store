@@ -23,10 +23,16 @@ further chunking, and no vector DB storage (see docs/generate-document-embedding
 
 import logging
 import os
-from typing import List, NamedTuple
+from concurrent.futures import ProcessPoolExecutor
+from typing import Callable, Dict, List, NamedTuple
+
+import fitz  # PyMuPDF
 
 from unstructured.chunking.title import chunk_by_title
-from unstructured.partition.auto import partition
+from unstructured.partition.docx import partition_docx
+from unstructured.partition.md import partition_md
+from unstructured.partition.pdf import partition_pdf
+from unstructured.partition.pptx import partition_pptx
 
 logger = logging.getLogger(__name__)
 
@@ -51,26 +57,64 @@ class MultimodalExtractionResult(NamedTuple):
     tableHTML: List[str]
     imageBase64: List[str]
 
+def _is_complex_pdf_page(page: fitz.Page) -> bool:
+    if len(page.get_images()) > 0:
+        return True
 
-def process_document(file_path: str) -> List[MultimodalExtractionResult]:
-    """Partition `file_path` with `unstructured` and split it into
-    title-delimited chunks, one `MultimodalExtractionResult` per chunk.
+    if len(page.get_drawings()) >0:
+        return True
 
-    Args:
-        file_path: Path to the document to extract. Must have an extension
-            in `MULTIMODAL_SUPPORTED_EXTENSIONS`.
+    return True
 
-    Returns:
-        One `MultimodalExtractionResult` per title-delimited chunk, each
-        holding that chunk's text and every table/image found under it.
 
-    Raises:
-        UnsupportedDocumentTypeError: If the file extension is not in
-            `MULTIMODAL_SUPPORTED_EXTENSIONS`. Raised before the file is
-            opened.
-        DocumentEmbeddingParseError: If the file cannot be parsed (e.g. it
-            is corrupt or truncated).
+def _process_pdf_range(file_path: str, start_page: int, end_page: int) -> List:
+    """Worker function to process a range of PDF pages using Hybrid strategy.
+
+    Pages are grouped into contiguous runs by strategy so `partition_pdf` (and
+    its hi_res layout-model load) is called once per run instead of once per
+    page — calling it per page was re-initializing the layout model on every
+    page, dominating runtime even for small documents.
     """
+    doc = fitz.open(file_path)
+    strategies = [
+        "hi_res" if _is_complex_pdf_page(doc[page_idx - 1]) else "fast"
+        for page_idx in range(start_page, end_page + 1)
+    ]
+    doc.close()
+
+    runs = []
+    run_start = start_page
+    for offset in range(1, len(strategies)):
+        if strategies[offset] != strategies[offset - 1]:
+            runs.append((run_start, start_page + offset - 1, strategies[offset - 1]))
+            run_start = start_page + offset
+    runs.append((run_start, end_page, strategies[-1]))
+
+    range_elements = []
+    for run_start_page, run_end_page, strategy in runs:
+        try:
+            logger.info(
+                "Strategy and page range %s %s-%s", strategy, run_start_page, run_end_page
+            )
+
+            elements = partition_pdf(
+                filename=file_path,
+                strategy=strategy,
+                starting_page_number=run_start_page,
+                ending_page_number=run_end_page,
+                infer_table_structure=(strategy == "hi_res"),
+            )
+            range_elements.extend(elements)
+        except Exception as e:
+            logger.error(
+                f"Error processing pages {run_start_page}-{run_end_page} of '{file_path}': {e}"
+            )
+
+    return range_elements
+
+
+def process_document(file_path: str, batch_size:int = 25, max_workers: int = 4) -> List[MultimodalExtractionResult]:
+    """Partition `file_path` with `unstructured` using parallel hybrid execution."""
     extension = _get_extension(file_path)
     if extension not in MULTIMODAL_SUPPORTED_EXTENSIONS:
         allowed_str = ", ".join(sorted(MULTIMODAL_SUPPORTED_EXTENSIONS))
@@ -79,14 +123,43 @@ def process_document(file_path: str) -> List[MultimodalExtractionResult]:
             f"Supported extensions are: {allowed_str}"
         )
 
+    elements = []
     try:
-        elements = partition(
-            filename=file_path,
-            infer_table_structure=True,  # to get the table as html
-            strategy="hi_res",  # to use the layout detection
-            extract_image_block_types=["Image"],
-            extract_image_block_to_payload=True,
-        )
+        if extension == ".pdf":
+            doc = fitz.open(file_path)
+            total_pages = len(doc)
+            doc.close()
+
+            logger.info(
+                f"Processing PDF '{file_path}' ({total_pages} pages) across {max_workers} processes..."
+            )
+
+            if total_pages < 30:
+                logger.info(f"Small PDF detected ({total_pages} pages). Running sequentially...")
+                elements = _process_pdf_range(file_path, 1, total_pages)
+            else:
+                # Build 1-indexed page ranges
+                ranges = [
+                    (i, min(i + batch_size - 1, total_pages))
+                    for i in range(1, total_pages + 1, batch_size)
+                ]
+
+                with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                    futures = [
+                        executor.submit(_process_pdf_range, file_path, start, end)
+                        for start, end in ranges
+                    ]
+                    for future in futures:
+                        elements.extend(future.result())
+
+        else:
+            handlers: Dict[str, Callable] = {
+                ".docx": lambda path: partition_docx(filename=path, infer_table_structure=True),
+                ".pptx": lambda path: partition_pptx(filename=path, infer_table_structure=True, include_slide_notes=True),
+                ".md": lambda path: partition_md(filename=path),
+            }
+            elements = handlers[extension](file_path)
+
     except Exception as exc:
         raise DocumentEmbeddingParseError(
             f"Failed to parse document '{file_path}': {exc}"

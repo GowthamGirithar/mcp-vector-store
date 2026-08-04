@@ -3,8 +3,9 @@
 import os
 import uuid
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Annotated, Any, Dict, Optional
 from mcp.server.fastmcp import Context
+from pydantic import Field
 
 from ..server import mcp
 from ..services import get_vector_db, get_embedding_service
@@ -19,11 +20,15 @@ from ..utils.validation import (
 from ..utils.exceptions import VectorDBError, ValidationError
 
 
-@mcp.tool(description="Store text in the vector database with automatic embedding generation")
+@mcp.tool()
 async def store_text(
-    text: str,
-    collection: str = "documents",
-    metadata: Optional[Dict[str, Any]] = None,
+    text: Annotated[str, Field(description="The text content to store")],
+    collection: Annotated[
+        str, Field(description="Collection name to store the document in")
+    ] = "documents",
+    metadata: Annotated[
+        Optional[Dict[str, Any]], Field(description="Optional metadata for the document")
+    ] = None,
     ctx: Context = None
 ) -> str:
     """Store text documents in the vector database with automatic embedding generation.

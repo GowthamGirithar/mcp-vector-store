@@ -22,9 +22,10 @@ import logging
 import os
 import uuid
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Annotated, Any, Dict, Optional
 
 from mcp.server.fastmcp import Context
+from pydantic import Field
 
 from ..server import mcp
 from ..services import get_vector_db, get_embedding_service
@@ -47,17 +48,25 @@ logger = logging.getLogger(__name__)
 
 @mcp.tool()
 async def generate_document_embedding(
-    file_path: str,
-    collection: str = "documents",
-    metadata: Optional[Dict[str, Any]] = None,
+    file_path: Annotated[
+        str, Field(description="Path to the document to process (.pdf, .md, .docx, .pptx)")
+    ],
+    collection: Annotated[
+        str, Field(description="Collection name to store the embedded chunks in")
+    ] = "documents",
+    metadata: Annotated[
+        Optional[Dict[str, Any]], Field(description="Optional metadata to attach to every stored chunk")
+    ] = None,
     ctx: Context = None,
 ) -> str:
     """Extract, embed, and store a document's chunks in the vector database.
 
-    Parses the document with `unstructured` into title-delimited chunks and
-    stores every chunk, tagged with `has_table`/`has_image` metadata
-    recording whether that chunk contained a table/image. Table HTML and
-    image base64 content are not stored anywhere by this tool.
+    Ingests a document by extracting, chunking, embedding, and
+    storing its contents into the vector database. Parses files
+    using unstructured into title-delimited chunks and tags each
+    chunk with metadata indicating whether it contains tables or
+    images (has_table, has_image).
+    Note: Raw table HTML and base64 image data are not retained.
 
     Args:
         file_path: Path to the document to process (.pdf, .md, .docx, .pptx)
@@ -66,7 +75,7 @@ async def generate_document_embedding(
         ctx: FastMCP context for logging and progress reporting
 
     Returns:
-        Success message with document ID and chunk count
+        A success message containing the document ID and total chunk count.
     """
     try:
         settings = get_settings()

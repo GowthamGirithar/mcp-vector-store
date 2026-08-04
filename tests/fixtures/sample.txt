@@ -1,2 +1,0 @@
-This is a sample plain text fixture used to test extract_text for .txt files.
-It has multiple lines of content.

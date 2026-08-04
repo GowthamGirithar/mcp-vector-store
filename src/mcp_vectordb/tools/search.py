@@ -1,8 +1,9 @@
 """Search tools for the MCP Vector Database Server."""
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Annotated, Any, Dict, List, Optional, Tuple
 from mcp.server.fastmcp.server import Context
+from pydantic import Field
 
 from ..server import mcp
 from ..services import get_vector_db, get_embedding_service
@@ -44,9 +45,13 @@ async def _get_bm25_index(
 
 @mcp.tool()
 async def similarity_search(
-    query: str,
-    collection: str = "documents",
-    filters: Optional[Dict[str, Any]] = None,
+    query: Annotated[str, Field(description="The search query text")],
+    collection: Annotated[
+        str, Field(description="Collection name to search in")
+    ] = "documents",
+    filters: Annotated[
+        Optional[Dict[str, Any]], Field(description="Optional metadata filters to apply")
+    ] = None,
     ctx: Context = None
 ) -> List[str]:
     """Perform similarity search to find relevant documents in the vector database.
@@ -138,22 +143,20 @@ async def similarity_search(
 
 @mcp.tool()
 async def hybrid_search(
-    query: str,
-    collection: str = "documents",
-    filters: Optional[Dict[str, Any]] = None,
+    query: Annotated[str, Field(description="The natural language search query.")],
+    collection: Annotated[
+        str, Field(description="Collection name to search in")
+    ] = "documents",
+    filters: Annotated[
+        Optional[Dict[str, Any]],
+        Field(description="Optional key-value metadata filters applied to limit the search scope."),
+    ] = None,
     ctx: Context = None
 ) -> List[str]:
     """Hybrid search: fuse vector (cosine) similarity and BM25 keyword search via RRF.
 
-    Pipeline: the query is run against both a vector similarity search and an
-    in-memory BM25 keyword search over the same collection, the two ranked
-    lists are combined with Reciprocal Rank Fusion (RRF), and an optional
-    cross-encoder reranker re-scores the fused top candidates. top_k, RRF
-    weights/k, the reranker model, whether the reranker runs, and the
-    min-score threshold are deployment-level tuning knobs configured via
-    SEARCH_DEFAULT_TOP_K / SEARCH_RRF_K / SEARCH_VECTOR_WEIGHT /
-    SEARCH_BM25_WEIGHT / SEARCH_RERANKER_MODEL / SEARCH_USE_RERANKER /
-    SEARCH_DEFAULT_MIN_SCORE, not exposed here.
+    Performs hybrid retrieval (dense vector + sparse BM25) fused via Reciprocal Rank Fusion (RRF)
+    and refined with an optional cross-encoder reranker
 
     Args:
         query: The search query text
