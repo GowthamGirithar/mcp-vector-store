@@ -1,0 +1,19 @@
+README.md
+  s_1ceeb0c5a8f662::t_ca8b08db96f3b8 171-219,223,225,228
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "88733e448339cca5e57dd20791f246512ae911f8",
+  "prompts": {},
+  "sessions": {
+    "s_1ceeb0c5a8f662": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "936f4705-c1d5-40e0-a540-ead2468b330a",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    }
+  }
+}
