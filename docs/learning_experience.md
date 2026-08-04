@@ -91,6 +91,27 @@ For this project I **selected cosine similarity** for search, since embedding ma
 
 ---
 
+## Agentic Embedding: When Format Isn't Uniform
+
+While embedding **"World Power Made Easy"**, a book structured as a series of question-and-answer pairs, I ran into a format problem rather than a content problem: the question/answer structure wasn't consistent across the book — some entries were short one-liners, others spanned multiple paragraphs, and the boundary between "question" and "answer" wasn't always textually obvious.
+
+A single static chunking rule (fixed size, or splitting on headings/titles) doesn't hold up well against that kind of variability — it either splits a question away from its answer or lumps unrelated Q&A pairs into one chunk. That's what surfaced the need for **agentic embedding**: instead of applying one fixed chunking strategy uniformly, use an LLM in the loop to reason about each section's actual structure and decide chunk boundaries (and any context to carry along) dynamically, per section, rather than statically.
+
+---
+
+## Performance Lesson: hi_res Cost and Per-Page Model Reloads
+
+When generating embeddings for a **500+ page PDF** using the `hi_res` partitioning strategy for every page, the job took **over 8 hours locally**. Two separate cost problems were compounding:
+
+- **`hi_res` runs a layout-detection model on every page**, which is expensive — and that cost is wasted on pages that are plain text with no images or tables, where the cheaper `fast` strategy extracts the same information just as well.
+  - **Fix:** classify each page first (does it contain images or drawings?) and only route pages that actually need it through `hi_res`; everything else uses `fast`. See `_is_complex_pdf_page` and its use in `_process_pdf_range` in `src/mcp_vectordb/chunking/process_document.py`.
+- **Calling `partition_pdf` once per single page reloads the hi_res layout model each time** — the model's load/init cost dominated total runtime even for a small number of pages, independent of the actual page content size.
+  - **Fix:** group consecutive pages by strategy into contiguous runs first, then call `partition_pdf` once per run instead of once per page, so the hi_res model loads once per run rather than once per page.
+
+**Takeaway:** when a step in a pipeline has a heavy one-time cost (model load, connection setup, etc.), batch by that cost profile — group work so the expensive step happens once per batch, not once per unit of work.
+
+---
+
 ## Fusion & Approximate Search Concepts
 
 When combining results from multiple retrieval methods (e.g., dense vector search + keyword/BM25 search), a few fusion concepts came up:
