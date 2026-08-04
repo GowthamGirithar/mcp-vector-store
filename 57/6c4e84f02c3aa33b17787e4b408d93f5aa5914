@@ -1,0 +1,19 @@
+docs/learning_experience.md
+  s_e0bb741e43ab62::t_c75a495a15c1d0 94-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "576c4e84f02c3aa33b17787e4b408d93f5aa5914",
+  "prompts": {},
+  "sessions": {
+    "s_e0bb741e43ab62": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5a160e71-7d5b-437b-bf23-e1753b68e09d",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    }
+  }
+}
