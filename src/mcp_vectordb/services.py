@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from .config.config import get_settings
 from .embedding import create_embedding_service
+from .llm import create_llm_service
 from .adapters.factory import VectorDBFactory
 
 logger = logging.getLogger(__name__)
@@ -12,6 +13,7 @@ logger = logging.getLogger(__name__)
 # Global services
 vector_db = None
 embedding_service = None
+llm_service = None
 settings = None
 
 
@@ -20,15 +22,15 @@ settings = None
 # we can use asynccontextmanager when we need to setup before and clean up after - using async and yield
 async def setup_services(app):
     """Initialize and cleanup services for FastMCP server."""
-    global vector_db, embedding_service, settings
-    
+    global vector_db, embedding_service, llm_service, settings
+
     try:
         logger.info("Initializing MCP Vector Database Server")
-        
+
         # Load settings
         settings = get_settings()
         logger.info(f"Loaded configuration for provider: {settings.vector_db.provider}")
-        
+
         # Initialize embedding service
         embedding_service = create_embedding_service(
             provider=settings.embedding.provider,
@@ -38,7 +40,15 @@ async def setup_services(app):
             cache_size=1000,
         )
         logger.info(f"Initialized embedding service: {settings.embedding.provider}")
-        
+
+        # Initialize LLM service (used by the agentic-embedding tool)
+        llm_service = create_llm_service(
+            provider=settings.llm.provider,
+            model=settings.llm.model,
+            api_key=settings.llm.api_key,
+        )
+        logger.info(f"Initialized LLM service: {settings.llm.provider}")
+
         # Initialize vector database adapter
         vector_db = VectorDBFactory.create_adapter(settings.vector_db)
         await vector_db.initialize()
@@ -80,6 +90,11 @@ def get_vector_db():
 def get_embedding_service():
     """Get the global embedding service instance."""
     return embedding_service
+
+
+def get_llm_service():
+    """Get the global LLM service instance."""
+    return llm_service
 
 
 def get_settings_instance():

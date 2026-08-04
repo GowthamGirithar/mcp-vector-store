@@ -4,3 +4,4 @@
 from .storage import *
 from .search import *
 from .document_embedding import *
+from .agentic_embedding import *

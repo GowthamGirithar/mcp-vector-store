@@ -58,3 +58,8 @@ class SearchError(VectorDBError):
 class StorageError(VectorDBError):
     """Exception raised when document storage fails."""
     pass
+
+
+class LLMServiceError(VectorDBError):
+    """Exception raised when an LLM completion call fails or returns an unusable response."""
+    pass

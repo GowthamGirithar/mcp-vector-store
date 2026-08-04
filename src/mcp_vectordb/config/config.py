@@ -27,6 +27,18 @@ class EmbeddingConfig(BaseModel):
     api_key: Optional[str] = Field(default=None)
 
 
+class LLMConfig(BaseModel):
+    """LLM completion service configuration, used for agentic embedding."""
+    provider: str = Field(default="openai")
+    model: str = Field(default="gpt-4o-mini")
+    api_key: Optional[str] = Field(default=None)
+    # Rough proxy for staying under the model's context window (default sized
+    # for gpt-4o-mini's ~128k token context, leaving headroom for the LLM's
+    # output since it may echo chunk text back). Documents over this size
+    # fall back to per-title-section calls; see `core/agentic_chunking.py`.
+    max_input_chars: int = Field(default=300000)
+
+
 class ServerConfig(BaseModel):
     """Server configuration for MCP server."""
     transport: str = Field(default="streamable-http")
@@ -68,6 +80,7 @@ class Settings(BaseModel):
     """Main settings class loaded from environment variables."""
     vector_db: VectorDBConfig
     embedding: EmbeddingConfig
+    llm: LLMConfig
     server: ServerConfig
     document: DocumentConfig
     search: SearchConfig
@@ -88,6 +101,13 @@ class Settings(BaseModel):
             api_key=os.getenv("OPENAI_API_KEY")
         )
         
+        llm = LLMConfig(
+            provider=os.getenv("LLM_PROVIDER", "openai"),
+            model=os.getenv("LLM_MODEL", "gpt-4o-mini"),
+            api_key=os.getenv("OPENAI_API_KEY"),
+            max_input_chars=int(os.getenv("LLM_MAX_INPUT_CHARS", "300000")),
+        )
+
         server = ServerConfig(
             transport=os.getenv("MCP_TRANSPORT", "streamable-http")
         )
@@ -109,7 +129,7 @@ class Settings(BaseModel):
             use_reranker=os.getenv("SEARCH_USE_RERANKER", "false").lower() in ("1", "true", "yes")
         )
 
-        return cls(vector_db=vector_db, embedding=embedding, server=server, document=document, search=search)
+        return cls(vector_db=vector_db, embedding=embedding, llm=llm, server=server, document=document, search=search)
 
 
 # Global settings instance
