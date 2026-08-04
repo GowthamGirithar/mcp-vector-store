@@ -168,14 +168,64 @@ flowchart TB
     I --> J[Return success message with document ID and chunk count]
 ```
 
+### `agentic_generate_embedding`
+
+Unlike `generate_document_embedding` (fixed-size/title-based chunking via `unstructured`), this tool hands chunk boundaries to an LLM: a caller-supplied `prompt` decides where chunks split and whatever extra per-chunk fields (title, summary, tags, ...) the LLM should produce, which get stored as chunk metadata (namespaced `llm_*`). Accepts either `file_path` or raw `text`.
+
+```json
+{
+  "name": "agentic_generate_embedding",
+  "description": "Chunk, embed, and store content using an LLM to decide chunk boundaries",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "prompt": { "type": "string", "description": "Instructions guiding how the LLM should chunk and tag the content" },
+      "file_path": { "type": "string", "description": "Path to the document to process (.pdf, .md, .docx, .pptx)", "nullable": true },
+      "text": { "type": "string", "description": "Raw text to process, used instead of file_path", "nullable": true },
+      "collection": { "type": "string", "description": "Collection name to store the embedded chunks in", "default": "documents" },
+      "metadata": { "type": "object", "description": "Optional metadata to attach to every stored chunk", "additionalProperties": true, "nullable": true }
+    },
+    "required": ["prompt"]
+  },
+  "returns": { "type": "string", "description": "Success message with document ID, collection, chunk count, stored document ID count" }
+}
+```
+
+Each stored chunk is tagged with metadata: `chunk_id`, `document_id`, `source`, `chunk_index`, `total_chunks`, `uploaded_at`, `agentic`, plus any LLM-produced fields prefixed `llm_`.
+
+For file input, the document's full raw text is sent to the LLM in a single call whenever it fits under `LLM_MAX_INPUT_CHARS` — preserving whole-document context for tasks that reason across sections (e.g. matching a question to an answer key elsewhere in the document). Only when the document is too large does it fall back to splitting on title boundaries and running one LLM call per section, which trades away cross-section correctness for the ability to handle arbitrarily large documents.
+
+```mermaid
+flowchart TB
+    A[agentic_generate_embedding call] --> B{text provided?}
+    B -- Yes --> C[Send text to LLM with prompt]
+    B -- No --> D[Extract document raw text]
+    D --> E{Fits under LLM_MAX_INPUT_CHARS?}
+    E -- Yes --> C
+    E -- No --> F[Split into title sections]
+    F --> G[Run one LLM call per section]
+    C --> H[Parse LLM JSON response into chunks]
+    G --> H
+    H --> I{Any chunks produced?}
+    I -- No --> Z[Return 0 chunks / 0 stored]
+    I -- Yes --> J{Collection exists?}
+    J -- No --> K[Auto-create collection]
+    J -- Yes --> L[Generate embeddings for all chunk texts]
+    K --> L
+    L --> M[Build Document per chunk + llm_* metadata]
+    M --> N[Store all chunk Documents in ChromaDB]
+    N --> O[Return success message with document ID and chunk count]
+```
+
 **Package layout:**
 - `adapters/` — vector DB adapter interface + ChromaDB implementation + factory
 - `chunking/` — document parsing/chunking (`process_document.py`)
-- `core/` — document embedding orchestration
+- `core/` — document embedding orchestration (`document_embedding.py`, `agentic_chunking.py`)
 - `embedding/` — embedding provider abstraction (OpenAI, Sentence-Transformers) + cache
+- `llm/` — LLM completion service abstraction (OpenAI), used by agentic embedding
 - `search/` — BM25 index, RRF fusion, cross-encoder reranker
 - `models/` — shared data models (`Document`)
-- `tools/` — MCP tool definitions (`storage.py`, `search.py`, `document_embedding.py`)
+- `tools/` — MCP tool definitions (`storage.py`, `search.py`, `document_embedding.py`, `agentic_embedding.py`)
 - `config/` — environment-driven settings (`.env`)
 
 ## How to Run
