@@ -1,0 +1,64 @@
+src/mcp_vectordb/llm/base.py
+  s_c17990961f50c0::t_b99497523ac61b 8-9
+  s_c17990961f50c0::t_e3362a8ba06228 1-7,10
+src/mcp_vectordb/chunking/raw_text.py
+  s_c17990961f50c0::t_4bf7d0f46dcaac 1-3,9-11,13,15-26,28-36,38-41,53,59
+  s_c17990961f50c0::t_15d0c7322f0e1e 4-8,12,14,27,37,42-52,54-58,60-92
+src/mcp_vectordb/llm/__init__.py
+  s_c17990961f50c0::t_ff902f28ad1de5 1-16
+src/mcp_vectordb/tools/__init__.py
+  s_c17990961f50c0::t_1c8cce12453cb5 7
+src/mcp_vectordb/utils/exceptions.py
+  s_c17990961f50c0::t_83c26ff7ef5dfd 60-64
+src/mcp_vectordb/services.py
+  s_c17990961f50c0::t_a433fae2fedc68 95-99
+  s_c17990961f50c0::t_36897e9e790457 8,16
+  s_c17990961f50c0::t_9f8f1a8adbac18 25-26,29,33,43-51
+src/mcp_vectordb/llm/openai_service.py
+  s_c17990961f50c0::t_b985ffcea7dde6 2,19,36
+  s_c17990961f50c0::t_cf35be2a956d70 1,3-18,20-31
+  s_c17990961f50c0::t_ab57042c3db29c 32-35
+src/mcp_vectordb/core/agentic_chunking.py
+  s_c17990961f50c0::t_4de81e74ef10c1 111-112,122
+  s_c17990961f50c0::t_9333c6539bcaac 77,101-107
+  s_c17990961f50c0::t_7c1a9a1c430f40 2-4,13-14,16,18,20-25,31-34,36-37,39-40,76,78,80,86,90,93-94,96-97,100,158,171
+  s_c17990961f50c0::t_c3813f79d5a5b6 17,38
+  s_c17990961f50c0::t_154ac776e148ed 19
+  s_c17990961f50c0::t_b80ac0fa2f8d84 81-85,87,91-92,123-157,159-170
+  s_c17990961f50c0::t_74c4e3348b6e07 1,5-12,15,26-30,35,41-75,79,88-89,95,98-99,108-110,113-121
+src/mcp_vectordb/config/config.py
+  s_c17990961f50c0::t_d6bfc7f9a903af 30-34,40-41
+  s_c17990961f50c0::t_0e72037012c1ae 83
+  s_c17990961f50c0::t_2c3f36fc3bab7a 104-106,109-110
+  s_c17990961f50c0::t_29c85a0f58411e 108
+  s_c17990961f50c0::t_95931a659e7644 132
+  s_c17990961f50c0::t_b82e5d4bb4f4ab 35-39
+  s_c17990961f50c0::t_873d8ea95cc1ec 107
+src/mcp_vectordb/tools/agentic_embedding.py
+  s_c17990961f50c0::t_a089c8030b54f4 75
+  s_c17990961f50c0::t_8b1a2d90b83459 123-126,135
+  s_c17990961f50c0::t_6d3a77c89df820 4-7
+  s_c17990961f50c0::t_76ab98e8cac8ae 8,22
+  s_c17990961f50c0::t_c2360fa82b358e 79-81,85-86
+  s_c17990961f50c0::t_980b04b583271e 27
+  s_c17990961f50c0::t_dc69867f3ba358 56-58
+  s_c17990961f50c0::t_a34524068a0d26 1-3,9-21,23-26,28-55,59-74,76-78,82-84,87-122,127-134,136-194
+.env.example
+  s_c17990961f50c0::t_8e226f3498195a 10-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "78b90c2acd777bc1c2bb894c6e26a008cfc9b275",
+  "prompts": {},
+  "sessions": {
+    "s_c17990961f50c0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb55f38d-3e0e-41bb-b560-04cf6c6d0672",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    }
+  }
+}
