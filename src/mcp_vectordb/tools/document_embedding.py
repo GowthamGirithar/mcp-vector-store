@@ -95,7 +95,7 @@ async def generate_document_embedding(
             await ctx.info(f"Starting document processing: {validated_file_path}")
 
         # Step 1: chunking
-        chunks = process_document(validated_file_path)
+        chunks = process_document(validated_file_path, parser=settings.document.parser)
         total_chunks = len(chunks)
 
         if ctx:

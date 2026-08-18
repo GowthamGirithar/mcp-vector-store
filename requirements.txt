@@ -10,3 +10,4 @@ python-dotenv>=1.0.0
 typing-extensions>=4.5.0
 pypdf>=4.0.0
 unstructured[pdf,docx,pptx,md]>=0.24.0
+docling>=2.0.0

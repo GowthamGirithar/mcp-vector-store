@@ -5,6 +5,7 @@ from typing import Optional
 from pydantic import BaseModel, Field, model_validator
 from dotenv import load_dotenv
 
+from ..chunking.process_document import SUPPORTED_PARSERS
 from ..utils.validation import validate_chunk_size, validate_chunk_overlap
 from ..utils.exceptions import ValidationError
 
@@ -49,6 +50,7 @@ class DocumentConfig(BaseModel):
     chunk_size: int = Field(default=500)
     chunk_overlap: int = Field(default=50)
     max_file_size_mb: float = Field(default=20.0)
+    parser: str = Field(default="unstructured")
 
     @model_validator(mode="after")
     def _validate_chunking(self) -> "DocumentConfig":
@@ -57,6 +59,10 @@ class DocumentConfig(BaseModel):
             validate_chunk_overlap(self.chunk_overlap, self.chunk_size)
         except ValidationError as e:
             raise ValueError(e.message)
+        if self.parser not in SUPPORTED_PARSERS:
+            raise ValueError(
+                f"Unknown parser '{self.parser}'. Supported parsers are: {', '.join(SUPPORTED_PARSERS)}"
+            )
         return self
 
 
@@ -116,6 +122,7 @@ class Settings(BaseModel):
             chunk_size=int(os.getenv("DOCUMENT_CHUNK_SIZE", "500")),
             chunk_overlap=int(os.getenv("DOCUMENT_CHUNK_OVERLAP", "50")),
             max_file_size_mb=float(os.getenv("DOCUMENT_MAX_FILE_SIZE_MB", "20.0")),
+            parser=os.getenv("DOCUMENT_PARSER", "unstructured"),
         )
 
         default_min_score_env = os.getenv("SEARCH_DEFAULT_MIN_SCORE")
