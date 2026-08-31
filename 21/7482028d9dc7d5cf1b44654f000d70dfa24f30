@@ -1,0 +1,42 @@
+src/mcp_vectordb/chunking/table_text.py
+  s_b211982490ed4b::t_b47abbb8d06ba2 1-126
+tests/test_document_embedding_tool.py
+  s_b211982490ed4b::t_3b06879ba5975e 98-151
+src/mcp_vectordb/embedding/cache.py
+  s_b211982490ed4b::t_8d2a90a802ea2f 48-54
+src/mcp_vectordb/chunking/process_document.py
+  s_b211982490ed4b::t_e0c7b06ce0d0fa 36,47,49,52-58
+  s_b211982490ed4b::t_a04250d638b247 337-341,353-362,376-378,382-411
+  s_b211982490ed4b::t_b9a844cbfe6a8d 48
+  s_b211982490ed4b::t_d9e8afa20dca95 248-250,258-268
+  s_b211982490ed4b::t_d33e455fe15dc3 59
+  s_b211982490ed4b::t_84a8b26ae02569 412-413
+src/mcp_vectordb/embedding/base.py
+  s_b211982490ed4b::t_9864e639168b73 20-40
+tests/test_table_text.py
+  s_b211982490ed4b::t_0dc0f7f6f9536d 1-40
+src/mcp_vectordb/tools/document_embedding.py
+  s_b211982490ed4b::t_3bf7757693f51f 97-105
+src/mcp_vectordb/chunking/token_budget.py
+  s_b211982490ed4b::t_9f1dd7245c8d9d 1-151
+src/mcp_vectordb/embedding/local_service.py
+  s_b211982490ed4b::t_f9abcfa1ba3b1e 17,23-41,43,51-52
+tests/test_token_budget.py
+  s_b211982490ed4b::t_37f4080fa0b52b 1-60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "217482028d9dc7d5cf1b44654f000d70dfa24f30",
+  "prompts": {},
+  "sessions": {
+    "s_b211982490ed4b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "40d94511-8310-4134-87bf-722feaed6626",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    }
+  }
+}
