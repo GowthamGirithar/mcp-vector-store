@@ -1,0 +1,27 @@
+tests/test_document_embedding_tool.py
+  s_b211982490ed4b::t_4fac55d4035dbe 10,156-227
+  s_b211982490ed4b::t_35da6b7f9de12c 76,81-82
+src/mcp_vectordb/tools/document_embedding.py
+  s_b211982490ed4b::t_8f841ba1fe14b7 124-144,150-160
+  s_b211982490ed4b::t_16dd2319174782 57-67,212
+  s_b211982490ed4b::t_8638022a416f72 145-149
+  s_b211982490ed4b::t_32856c483fb112 19-26,29,80-83,99-100,104-105
+src/mcp_vectordb/chunking/process_document.py
+  s_b211982490ed4b::t_07130e9dcd2668 83-96,98-110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "9adc3f68094db3142acb7ddb5337ad090cb87ee8",
+  "prompts": {},
+  "sessions": {
+    "s_b211982490ed4b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "40d94511-8310-4134-87bf-722feaed6626",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    }
+  }
+}
