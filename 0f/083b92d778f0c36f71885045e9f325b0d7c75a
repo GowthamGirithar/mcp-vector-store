@@ -1,0 +1,22 @@
+src/mcp_vectordb/tools/document_embedding.py
+  s_b211982490ed4b::t_5e204fd5d867ec 194-196,276-278
+  s_b211982490ed4b::t_27412136100a1f 118-120
+tests/test_document_embedding_tool.py
+  s_b211982490ed4b::t_642383e2a63eb3 31-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "0f083b92d778f0c36f71885045e9f325b0d7c75a",
+  "prompts": {},
+  "sessions": {
+    "s_b211982490ed4b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "40d94511-8310-4134-87bf-722feaed6626",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    }
+  }
+}
