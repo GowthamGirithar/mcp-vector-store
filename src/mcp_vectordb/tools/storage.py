@@ -11,6 +11,7 @@ from ..server import mcp
 from ..services import get_vector_db, get_embedding_service
 from ..config.config import get_settings
 from ..models.document import Document
+from .search import invalidate_bm25_cache
 from ..utils.validation import (
     validate_text,
     validate_metadata,
@@ -84,6 +85,7 @@ async def store_text(
         
         # Store document
         doc_ids = await vector_db.store_documents([document], validated_collection)
+        invalidate_bm25_cache(validated_collection)
         
         if ctx:
            await ctx.info(f"Successfully stored document with ID: {doc_ids[0]}")

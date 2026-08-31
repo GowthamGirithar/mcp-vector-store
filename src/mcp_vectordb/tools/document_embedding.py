@@ -45,6 +45,7 @@ from ..chunking.process_document import (
     MULTIMODAL_SUPPORTED_EXTENSIONS,
     process_document,
 )
+from .search import invalidate_bm25_cache
 from ..utils.validation import (
     validate_file_path,
     validate_collection_name,
@@ -153,6 +154,7 @@ async def generate_document_embedding(
         if existing_chunks and force:
             existing_ids = [chunk.id for chunk in existing_chunks]
             await vector_db.delete_documents(existing_ids, validated_collection)
+            invalidate_bm25_cache(validated_collection)
             if ctx:
                 await ctx.info(
                     f"Replacing {len(existing_ids)} existing chunk(s) for '{source_filename}' (force=True)"
@@ -227,6 +229,7 @@ async def generate_document_embedding(
             ))
 
         doc_ids = await vector_db.store_documents(documents, validated_collection)
+        invalidate_bm25_cache(validated_collection)
 
         if ctx:
             await ctx.info(

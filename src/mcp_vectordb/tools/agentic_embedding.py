@@ -26,6 +26,7 @@ from ..chunking.process_document import (
 )
 from ..core.agentic_chunking import agentic_chunk_text, agentic_chunk_document
 from ..models.document import Document
+from .search import invalidate_bm25_cache
 from ..utils.exceptions import ValidationError, VectorDBError, LLMServiceError
 
 logger = logging.getLogger(__name__)
@@ -143,6 +144,7 @@ async def agentic_generate_embedding(
             ))
 
         doc_ids = await vector_db.store_documents(documents, collection)
+        invalidate_bm25_cache(collection)
 
         if ctx:
             await ctx.info(

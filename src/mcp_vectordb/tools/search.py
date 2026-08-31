@@ -15,8 +15,25 @@ from ..search import rerank as cross_encoder_rerank
 
 logger = logging.getLogger(__name__)
 
-# collection -> (document_count, BM25Index); rebuilt whenever the count changes.
+# collection -> (document_count, BM25Index). Primary invalidation is explicit:
+# any tool that writes to a collection (store/delete/replace) must call
+# invalidate_bm25_cache(collection) after the write commits — see
+# tools/document_embedding.py, tools/agentic_embedding.py, tools/storage.py.
+# The document_count comparison below is only a defensive fallback for a
+# write path that forgets to call it; count alone is not sufficient, since an
+# update or a same-size delete+insert (e.g. re-ingesting a document with
+# force=True) leaves the count unchanged while the underlying text changes.
 _bm25_cache: Dict[str, Tuple[int, BM25Index]] = {}
+
+
+def invalidate_bm25_cache(collection: str) -> None:
+    """Drop the cached BM25 index for `collection`.
+
+    Call this after any write (store, delete, or replace) to that collection
+    commits, so the next search rebuilds against current content instead of
+    serving a stale index. A no-op if nothing is cached for it yet.
+    """
+    _bm25_cache.pop(collection, None)
 
 
 async def _get_bm25_index(
@@ -270,14 +287,30 @@ async def hybrid_search(
 
         vector_scores = {r.document.id: r.score for r in vector_results}
 
-        # min_score is applied against vector (cosine) similarity, matching the
-        # 0.0-1.0 semantics of similarity_search's min_score. BM25-only hits have
-        # no comparable bounded score, so they aren't filtered by this threshold.
+        # min_score is a 0.0-1.0 confidence floor. Vector (cosine) scores are
+        # already in that range and are checked directly. BM25 scores are
+        # unbounded, so a BM25-only hit (no vector score at all) used to
+        # default to 1.0 here and pass the threshold unconditionally — a
+        # min_score filter that only ever filtered the vector leg is not a
+        # min_score filter. Instead, BM25 scores are min-max normalized
+        # against the strongest BM25 match in *this* candidate pool (the
+        # only scale a raw BM25 score can meaningfully be compared against),
+        # and a document passes if either leg clears the bar — consistent
+        # with hybrid search's premise that a strong match on either signal
+        # is worth keeping.
         if min_score is not None:
-            fused = [
-                (doc_id, score) for doc_id, score in fused
-                if vector_scores.get(doc_id, 1.0) >= min_score
-            ]
+            max_bm25_score = max(bm25_scores.values(), default=0.0)
+
+            def _passes_min_score(doc_id: str) -> bool:
+                vector_score = vector_scores.get(doc_id)
+                if vector_score is not None and vector_score >= min_score:
+                    return True
+                raw_bm25_score = bm25_scores.get(doc_id)
+                if raw_bm25_score is not None and max_bm25_score > 0:
+                    return (raw_bm25_score / max_bm25_score) >= min_score
+                return False
+
+            fused = [(doc_id, score) for doc_id, score in fused if _passes_min_score(doc_id)]
 
         top_results = fused[:validated_top_k]
 
