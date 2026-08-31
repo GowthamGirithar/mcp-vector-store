@@ -7,6 +7,7 @@ import pytest
 
 from mcp_vectordb.chunking.process_document import process_document
 from mcp_vectordb.config.config import DocumentConfig
+from mcp_vectordb.models.document import Document
 from mcp_vectordb.tools import document_embedding as document_embedding_tool
 
 FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
@@ -72,10 +73,13 @@ async def test_generate_document_embedding_uses_configured_parser():
 
     mock_vector_db = MagicMock()
     mock_vector_db.collection_exists = AsyncMock(return_value=True)
+    mock_vector_db.get_all_documents = AsyncMock(return_value=[])
     mock_vector_db.store_documents = AsyncMock(return_value=["chunk-id"])
 
     mock_embedding_service = MagicMock()
     mock_embedding_service.dimension = 384
+    mock_embedding_service.count_tokens = lambda text: len(text.split())
+    mock_embedding_service.max_input_tokens = 256
     mock_embedding_service.generate_embeddings = AsyncMock(return_value=[[0.0] * 384])
 
     with patch.object(
@@ -149,3 +153,75 @@ async def test_generate_embedding_warns_when_input_exceeds_model_token_limit(rea
         await embedding_service.generate_embedding(long_text)
 
     assert any("truncated" in record.message.lower() for record in caplog.records)
+
+
+def _mock_services(existing_chunks):
+    """A mocked vector_db/embedding_service pair for idempotency tests.
+
+    `existing_chunks` stands in for whatever `get_all_documents` would
+    return when filtered by `content_hash` — empty for "nothing ingested
+    yet", non-empty to exercise the skip/force-replace paths without
+    needing a real vector DB round-trip.
+    """
+    mock_vector_db = MagicMock()
+    mock_vector_db.collection_exists = AsyncMock(return_value=True)
+    mock_vector_db.get_all_documents = AsyncMock(return_value=existing_chunks)
+    mock_vector_db.delete_documents = AsyncMock(return_value=True)
+    mock_vector_db.store_documents = AsyncMock(return_value=["chunk-id"])
+
+    mock_embedding_service = MagicMock()
+    mock_embedding_service.dimension = 384
+    mock_embedding_service.count_tokens = lambda text: len(text.split())
+    mock_embedding_service.max_input_tokens = 256
+    mock_embedding_service.generate_embeddings = AsyncMock(return_value=[[0.0] * 384])
+
+    return mock_vector_db, mock_embedding_service
+
+
+@pytest.mark.asyncio
+async def test_generate_document_embedding_skips_duplicate_content_by_default():
+    """Regression test for the no-idempotency gap: re-ingesting the same file
+    used to mint a fresh document_id and chunk UUIDs every call, duplicating
+    the corpus and skewing BM25 IDF. A repeat call with unchanged content
+    must now skip instead of re-processing."""
+    existing = [
+        Document(
+            id="chunk-1",
+            text="existing text",
+            metadata={"document_id": "doc-existing", "uploaded_at": "2026-01-01T00:00:00"},
+        )
+    ]
+    mock_vector_db, mock_embedding_service = _mock_services(existing)
+
+    with patch.object(document_embedding_tool, "process_document") as mock_process_document,          patch.object(document_embedding_tool, "get_vector_db", return_value=mock_vector_db),          patch.object(document_embedding_tool, "get_embedding_service", return_value=mock_embedding_service):
+        result = await document_embedding_tool.generate_document_embedding(
+            file_path=fixture_path("multimodal_sample.md")
+        )
+
+    assert "already ingested" in result
+    assert "doc-existing" in result
+    mock_process_document.assert_not_called()
+    mock_vector_db.store_documents.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_generate_document_embedding_force_replaces_existing_chunks():
+    """`force=True` must delete the existing chunks for this content hash
+    before re-ingesting, rather than skipping or duplicating."""
+    existing = [
+        Document(id="chunk-1", text="t", metadata={"document_id": "doc-existing"}),
+        Document(id="chunk-2", text="t", metadata={"document_id": "doc-existing"}),
+    ]
+    mock_vector_db, mock_embedding_service = _mock_services(existing)
+
+    with patch.object(
+        document_embedding_tool, "process_document", wraps=process_document
+    ) as mock_process_document,          patch.object(document_embedding_tool, "get_vector_db", return_value=mock_vector_db),          patch.object(document_embedding_tool, "get_embedding_service", return_value=mock_embedding_service):
+        result = await document_embedding_tool.generate_document_embedding(
+            file_path=fixture_path("multimodal_sample.md"), force=True,
+        )
+
+    mock_vector_db.delete_documents.assert_awaited_once_with(["chunk-1", "chunk-2"], "documents")
+    mock_process_document.assert_called_once()
+    mock_vector_db.store_documents.assert_awaited_once()
+    assert "Successfully processed" in result

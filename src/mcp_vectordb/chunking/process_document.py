@@ -79,60 +79,35 @@ class MultimodalExtractionResult(NamedTuple):
     tableHTML: List[str]
     imageBase64: List[str]
 
-def _is_complex_pdf_page(page: fitz.Page) -> bool:
-    if len(page.get_images()) > 0:
-        return True
-
-    if len(page.get_drawings()) >0:
-        return True
-
-    return True
-
-
 def _process_pdf_range(file_path: str, start_page: int, end_page: int) -> List:
-    """Worker function to process a range of PDF pages using Hybrid strategy.
+    """Worker function to process a range of PDF pages with `hi_res`.
 
-    Pages are grouped into contiguous runs by strategy so `partition_pdf` (and
-    its hi_res layout-model load) is called once per run instead of once per
-    page — calling it per page was re-initializing the layout model on every
-    page, dominating runtime even for small documents.
+    Every PDF page is partitioned with `hi_res` (layout-model-based
+    extraction) rather than being classified into `hi_res`/`fast` per page:
+    the prior classifier (`_is_complex_pdf_page`) always returned `True`
+    regardless of page content, so every page was already going through
+    `hi_res` in practice — this makes that the explicit, intended behavior
+    instead of a dead classification path, and accepts the cost of running
+    the layout model on plain-text pages in exchange for correctly capturing
+    tables (`infer_table_structure=True`) and images on every page,
+    including ones that a lighter classifier might misjudge as simple.
+    `partition_pdf` is still called once per assigned page range (not once
+    per page) so the layout model loads once per range rather than once per
+    page.
     """
-    doc = fitz.open(file_path)
-    strategies = [
-        "hi_res" if _is_complex_pdf_page(doc[page_idx - 1]) else "fast"
-        for page_idx in range(start_page, end_page + 1)
-    ]
-    doc.close()
-
-    runs = []
-    run_start = start_page
-    for offset in range(1, len(strategies)):
-        if strategies[offset] != strategies[offset - 1]:
-            runs.append((run_start, start_page + offset - 1, strategies[offset - 1]))
-            run_start = start_page + offset
-    runs.append((run_start, end_page, strategies[-1]))
-
-    range_elements = []
-    for run_start_page, run_end_page, strategy in runs:
-        try:
-            logger.info(
-                "Strategy and page range %s %s-%s", strategy, run_start_page, run_end_page
-            )
-
-            elements = partition_pdf(
-                filename=file_path,
-                strategy=strategy,
-                starting_page_number=run_start_page,
-                ending_page_number=run_end_page,
-                infer_table_structure=(strategy == "hi_res"),
-            )
-            range_elements.extend(elements)
-        except Exception as e:
-            logger.error(
-                f"Error processing pages {run_start_page}-{run_end_page} of '{file_path}': {e}"
-            )
-
-    return range_elements
+    try:
+        return partition_pdf(
+            filename=file_path,
+            strategy="hi_res",
+            starting_page_number=start_page,
+            ending_page_number=end_page,
+            infer_table_structure=True,
+        )
+    except Exception as e:
+        logger.error(
+            f"Error processing pages {start_page}-{end_page} of '{file_path}': {e}"
+        )
+        return []
 
 
 def _process_docling(file_path: str) -> List[MultimodalExtractionResult]:

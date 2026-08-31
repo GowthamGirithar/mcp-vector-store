@@ -16,8 +16,17 @@ Table HTML and image base64 payloads themselves are not stored anywhere by
 this tool (that lives in a separate store, out of scope here) — only the
 flags indicating their presence are kept, so a caller can decide whether to
 look them up elsewhere.
+
+Re-ingesting the same file is idempotent by content: every chunk is tagged
+with a `content_hash` (sha256 of the file's raw bytes), computed and checked
+against the target collection before any chunking/embedding work happens.
+A repeat call with unchanged content skips re-ingestion entirely rather than
+duplicating the corpus (which previously skewed BM25 IDF and let duplicates
+crowd out top-k results); pass `force=True` to replace the existing chunks
+instead of skipping.
 """
 
+import hashlib
 import logging
 import os
 import uuid
@@ -45,6 +54,17 @@ from ..utils.exceptions import ValidationError, VectorDBError
 
 logger = logging.getLogger(__name__)
 
+_HASH_CHUNK_SIZE = 1024 * 1024  # 1 MiB
+
+
+def _hash_file(file_path: str) -> str:
+    """sha256 of `file_path`'s raw bytes, read in chunks to bound memory use."""
+    digest = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for block in iter(lambda: f.read(_HASH_CHUNK_SIZE), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
 
 @mcp.tool()
 async def generate_document_embedding(
@@ -57,6 +77,10 @@ async def generate_document_embedding(
     metadata: Annotated[
         Optional[Dict[str, Any]], Field(description="Optional metadata to attach to every stored chunk")
     ] = None,
+    force: Annotated[
+        bool,
+        Field(description="If the same file content is already stored in this collection, replace it instead of skipping"),
+    ] = False,
     ctx: Context = None,
 ) -> str:
     """Extract, embed, and store a document's chunks in the vector database.
@@ -72,10 +96,13 @@ async def generate_document_embedding(
         file_path: Path to the document to process (.pdf, .md, .docx, .pptx)
         collection: Collection name to store the embedded chunks in (default: "documents")
         metadata: Optional metadata to attach to every stored chunk
+        force: If the same file content is already stored in this collection,
+            replace it instead of skipping (default: False, skip)
         ctx: FastMCP context for logging and progress reporting
 
     Returns:
-        A success message containing the document ID and total chunk count.
+        A success message containing the document ID and total chunk count,
+        or a message noting the document was already ingested and skipped.
     """
     try:
         settings = get_settings()
@@ -93,6 +120,43 @@ async def generate_document_embedding(
 
         if ctx:
             await ctx.info(f"Starting document processing: {validated_file_path}")
+
+        # Idempotency check: hash the raw file bytes and look for an existing
+        # ingest of the same content in this collection *before* doing any
+        # parsing/embedding work — a repeat call with unchanged content is
+        # the common case this guards, so it should be cheap. Re-ingesting
+        # without this previously minted a fresh document_id and chunk UUIDs
+        # every time, duplicating the corpus and skewing BM25 IDF.
+        content_hash = _hash_file(validated_file_path)
+        existing_chunks = []
+        if await vector_db.collection_exists(validated_collection):
+            existing_chunks = await vector_db.get_all_documents(
+                validated_collection, filters={"content_hash": content_hash}
+            )
+
+        if existing_chunks and not force:
+            existing_document_id = existing_chunks[0].metadata.get("document_id", "unknown")
+            existing_uploaded_at = existing_chunks[0].metadata.get("uploaded_at", "unknown")
+            if ctx:
+                await ctx.info(
+                    f"'{source_filename}' already ingested as document {existing_document_id}; skipping"
+                )
+            return (
+                f"Document '{source_filename}' already ingested — skipped.\n"
+                f"Document ID: {existing_document_id}\n"
+                f"Collection: {validated_collection}\n"
+                f"Existing chunks: {len(existing_chunks)}\n"
+                f"Originally uploaded: {existing_uploaded_at}\n"
+                f"Call again with force=True to replace it."
+            )
+
+        if existing_chunks and force:
+            existing_ids = [chunk.id for chunk in existing_chunks]
+            await vector_db.delete_documents(existing_ids, validated_collection)
+            if ctx:
+                await ctx.info(
+                    f"Replacing {len(existing_ids)} existing chunk(s) for '{source_filename}' (force=True)"
+                )
 
         # Step 1: chunking. count_tokens/max_tokens size each chunk to the
         # embedding model's actual token budget (see chunking/token_budget.py)
@@ -145,6 +209,7 @@ async def generate_document_embedding(
             chunk_metadata = {
                 "chunk_id": chunk_id,
                 "document_id": document_id,
+                "content_hash": content_hash,
                 "source_filename": source_filename,
                 "file_type": os.path.splitext(validated_file_path)[1].lower(),
                 "chunk_index": chunk_index,
