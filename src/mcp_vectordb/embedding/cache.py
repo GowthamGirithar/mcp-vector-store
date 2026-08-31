@@ -45,6 +45,13 @@ class CachedEmbeddingService(EmbeddingService):
     def dimension(self) -> int:
         return self.service.dimension
 
+    @property
+    def max_input_tokens(self) -> int:
+        return self.service.max_input_tokens
+
+    def count_tokens(self, text: str) -> int:
+        return self.service.count_tokens(text)
+
     async def generate_embedding(self, text: str) -> List[float]:
         if cached := self.cache.get(text):
             return cached

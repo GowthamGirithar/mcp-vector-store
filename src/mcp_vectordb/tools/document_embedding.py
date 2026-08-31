@@ -94,8 +94,15 @@ async def generate_document_embedding(
         if ctx:
             await ctx.info(f"Starting document processing: {validated_file_path}")
 
-        # Step 1: chunking
-        chunks = process_document(validated_file_path, parser=settings.document.parser)
+        # Step 1: chunking. count_tokens/max_tokens size each chunk to the
+        # embedding model's actual token budget (see chunking/token_budget.py)
+        # so no chunk is silently truncated by the model at embedding time.
+        chunks = process_document(
+            validated_file_path,
+            parser=settings.document.parser,
+            count_tokens=embedding_service.count_tokens,
+            max_tokens=embedding_service.max_input_tokens,
+        )
         total_chunks = len(chunks)
 
         if ctx:

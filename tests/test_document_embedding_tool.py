@@ -95,3 +95,57 @@ async def test_generate_document_embedding_uses_configured_parser():
 def test_document_config_rejects_unsupported_parser():
     with pytest.raises(ValueError):
         DocumentConfig(parser="not-a-real-parser")
+
+
+def test_process_document_unstructured_embeds_table_content_in_text():
+    """Regression test for the table-text-dropped gap: `process_document`
+    used to route a Table element's content into `tableHTML` only, so
+    `has_table: True` was the only trace of it left in the embedded/searched
+    text — the actual cell values (e.g. "Alice", "92") were unsearchable.
+    """
+    results = process_document(fixture_path("multimodal_sample.docx"), parser="unstructured")
+
+    assert any(r.tableHTML for r in results)
+    table_chunk = next(r for r in results if r.tableHTML)
+    assert "Alice" in table_chunk.text
+    assert "92" in table_chunk.text
+
+
+def test_process_document_splits_chunks_over_the_embedding_token_budget():
+    """Regression test for the embedding-truncation gap: a chunk whose
+    character count is under `chunk_by_title`'s 5000-char ceiling can still
+    tokenize past the embedding model's `max_seq_length` (measured: 13 of
+    157 chunks on attention.pdf exceeded MiniLM's 256-token limit, losing
+    ~18% of the document's tokens). `count_tokens`/`max_tokens` must split
+    those chunks so no piece exceeds the budget.
+    """
+
+    def count_tokens(text: str) -> int:
+        return len(text.split())  # word count stands in for a real tokenizer
+
+    long_text_chunks = process_document(
+        fixture_path("attention.pdf"),
+        parser="unstructured",
+        count_tokens=count_tokens,
+        max_tokens=50,
+    )
+
+    assert len(long_text_chunks) > 0
+    for chunk in long_text_chunks:
+        assert count_tokens(chunk.text) <= 50, (
+            f"chunk exceeds token budget: {count_tokens(chunk.text)} > 50"
+        )
+
+
+@pytest.mark.asyncio
+async def test_generate_embedding_warns_when_input_exceeds_model_token_limit(real_services, caplog):
+    """Regression test: `SentenceTransformerEmbeddingService` used to embed
+    (and silently truncate) any input regardless of length, with no signal
+    that truncation had occurred."""
+    _, embedding_service = real_services
+    long_text = "word " * (embedding_service.max_input_tokens * 3)
+
+    with caplog.at_level("WARNING"):
+        await embedding_service.generate_embedding(long_text)
+
+    assert any("truncated" in record.message.lower() for record in caplog.records)

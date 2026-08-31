@@ -33,7 +33,7 @@ import logging
 import os
 from concurrent.futures import ProcessPoolExecutor
 from io import BytesIO
-from typing import Callable, Dict, List, Literal, NamedTuple
+from typing import Callable, Dict, List, Literal, NamedTuple, Optional
 
 import fitz  # PyMuPDF
 from docling_core.transforms.chunker import HybridChunker
@@ -44,7 +44,18 @@ from unstructured.partition.md import partition_md
 from unstructured.partition.pdf import partition_pdf
 from unstructured.partition.pptx import partition_pptx
 
+from .table_text import linearize_table_html
+from .token_budget import split_text_to_budget
+
 logger = logging.getLogger(__name__)
+
+# Chunks under this many tokens are merged into their preceding sibling
+# (within the same chunk_by_title group) rather than embedded on their own —
+# see `token_budget.fit_chunks_to_budget`.
+DEFAULT_MIN_CHUNK_TOKENS = 20
+# Default token overlap carried between pieces of a chunk split for being
+# over the embedding model's budget.
+DEFAULT_CHUNK_OVERLAP_TOKENS = 32
 
 MULTIMODAL_SUPPORTED_EXTENSIONS = {".pdf", ".md", ".docx", ".pptx"}
 SUPPORTED_PARSERS = ("unstructured", "docling")
@@ -234,6 +245,9 @@ def process_document(
     batch_size: int = 25,
     max_workers: int = 4,
     parser: Literal["unstructured", "docling"] = "unstructured",
+    count_tokens: Optional[Callable[[str], int]] = None,
+    max_tokens: Optional[int] = None,
+    chunk_overlap_tokens: int = DEFAULT_CHUNK_OVERLAP_TOKENS,
 ) -> List[MultimodalExtractionResult]:
     """Partition `file_path` into multimodal chunks using the selected `parser`.
 
@@ -241,6 +255,17 @@ def process_document(
     pipeline. `parser="docling"` runs Docling's `DocumentConverter` +
     `HybridChunker` instead, for side-by-side comparison — it ignores
     `batch_size`/`max_workers`, which are `unstructured`-specific.
+
+    `count_tokens`/`max_tokens` (both required together to take effect —
+    pass the embedding service's own `count_tokens`/`max_input_tokens`) size
+    each chunk's text to the target embedding model's token budget: any
+    chunk that would otherwise be truncated by the model is split on
+    sentence boundaries into pieces that each fit, with `chunk_overlap_tokens`
+    of overlap carried between adjacent pieces so a fact sitting on a
+    sentence boundary isn't stranded in only one piece. Table/image payloads
+    ride with the first piece of the chunk they came from. Omitting both
+    (the default) skips this pass entirely — the `docling` parser is
+    unaffected either way, since `HybridChunker` already tokenizes internally.
     """
     extension = _get_extension(file_path)
     if extension not in MULTIMODAL_SUPPORTED_EXTENSIONS:
@@ -309,7 +334,11 @@ def process_document(
         elements,
         max_characters=5000,  # maximum characters per chunk
         new_after_n_chars=5000,
-        combine_text_under_n_chars=0,  # disable merging across headings
+        # 200 chars keeps chunk_by_title's own title-boundary-respecting merge
+        # from leaving slivers behind — measured on attention.pdf: combine=0
+        # left 54% of chunks under 10 tokens (median 7); combine=200 clears
+        # every sub-10-token chunk while barely moving the oversize count.
+        combine_text_under_n_chars=200,
         isolate_table=False,
     )
 
@@ -321,7 +350,16 @@ def process_document(
 
         for orig_el in chunk.metadata.orig_elements or []:
             if orig_el.category == _TABLE_CATEGORY:
-                table_html.append(orig_el.metadata.text_as_html)
+                html = orig_el.metadata.text_as_html
+                table_html.append(html)
+                # Table content used to be dropped from the embedded/searched
+                # text entirely (only `has_table: True` survived to metadata)
+                # — linearize it into the chunk's own text in document order,
+                # right where the table appeared, so its content is
+                # retrievable via both vector and BM25 search.
+                linearized = linearize_table_html(html)
+                if linearized:
+                    text_parts.append(linearized)
             elif orig_el.category == _IMAGE_CATEGORY:
                 image_base64.append(orig_el.metadata.image_base64)
             elif orig_el.text:
@@ -335,7 +373,42 @@ def process_document(
             )
         )
 
+    if count_tokens is not None and max_tokens is not None:
+        results = _split_oversize_results(results, count_tokens, max_tokens, chunk_overlap_tokens)
+
     return results
+
+
+def _split_oversize_results(
+    results: List[MultimodalExtractionResult],
+    count_tokens: Callable[[str], int],
+    max_tokens: int,
+    overlap: int,
+) -> List[MultimodalExtractionResult]:
+    """Split any chunk whose text would be truncated by the embedding model.
+
+    Only splits — fragmentation is already handled upstream by
+    `combine_text_under_n_chars` in the `chunk_by_title` call above, which
+    (unlike a post-hoc merge here) can merge slivers without crossing the
+    title boundaries `chunk_by_title` itself decided on.
+    """
+    split_results: List[MultimodalExtractionResult] = []
+    for result in results:
+        pieces = split_text_to_budget(result.text, count_tokens, max_tokens, overlap)
+        if len(pieces) <= 1:
+            split_results.append(result)
+            continue
+        for i, piece in enumerate(pieces):
+            # table/image payloads ride with the first piece only, so a
+            # table is never duplicated across a chunk's split pieces
+            split_results.append(
+                MultimodalExtractionResult(
+                    text=piece,
+                    tableHTML=result.tableHTML if i == 0 else [],
+                    imageBase64=result.imageBase64 if i == 0 else [],
+                )
+            )
+    return split_results
 
 
 def _get_extension(file_path: str) -> str:
