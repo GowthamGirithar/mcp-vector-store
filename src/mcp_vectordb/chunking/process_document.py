@@ -33,7 +33,7 @@ import logging
 import os
 from concurrent.futures import ProcessPoolExecutor
 from io import BytesIO
-from typing import Callable, Dict, List, Literal, NamedTuple, Optional
+from typing import Callable, Dict, List, Literal, NamedTuple, Optional, Tuple
 
 import fitz  # PyMuPDF
 from docling_core.transforms.chunker import HybridChunker
@@ -79,7 +79,7 @@ class MultimodalExtractionResult(NamedTuple):
     tableHTML: List[str]
     imageBase64: List[str]
 
-def _process_pdf_range(file_path: str, start_page: int, end_page: int) -> List:
+def _process_pdf_range(file_path: str, start_page: int, end_page: int) -> Tuple[List, bool]:
     """Worker function to process a range of PDF pages with `hi_res`.
 
     Every PDF page is partitioned with `hi_res` (layout-model-based
@@ -94,6 +94,13 @@ def _process_pdf_range(file_path: str, start_page: int, end_page: int) -> List:
     `partition_pdf` is still called once per assigned page range (not once
     per page) so the layout model loads once per range rather than once per
     page.
+
+    Returns `(elements, failed)`. A failed range returns `([], True)`
+    rather than raising, so one bad range doesn't abort every other
+    already-successful range in the same document — but `failed=True` lets
+    the caller (`process_document`) track and surface it, rather than a
+    document silently coming back partially indexed with no signal anywhere
+    that pages were dropped.
     """
     try:
         return partition_pdf(
@@ -102,12 +109,12 @@ def _process_pdf_range(file_path: str, start_page: int, end_page: int) -> List:
             starting_page_number=start_page,
             ending_page_number=end_page,
             infer_table_structure=True,
-        )
+        ), False
     except Exception as e:
         logger.error(
             f"Error processing pages {start_page}-{end_page} of '{file_path}': {e}"
         )
-        return []
+        return [], True
 
 
 def _process_docling(file_path: str) -> List[MultimodalExtractionResult]:
@@ -223,6 +230,7 @@ def process_document(
     count_tokens: Optional[Callable[[str], int]] = None,
     max_tokens: Optional[int] = None,
     chunk_overlap_tokens: int = DEFAULT_CHUNK_OVERLAP_TOKENS,
+    pages_failed: Optional[List[Tuple[int, int]]] = None,
 ) -> List[MultimodalExtractionResult]:
     """Partition `file_path` into multimodal chunks using the selected `parser`.
 
@@ -241,6 +249,18 @@ def process_document(
     ride with the first piece of the chunk they came from. Omitting both
     (the default) skips this pass entirely — the `docling` parser is
     unaffected either way, since `HybridChunker` already tokenizes internally.
+
+    `pages_failed`, if given a list, is appended in place with the
+    `(start_page, end_page)` of every PDF page range that raised during
+    partitioning. Those pages simply contribute no elements — this function
+    still returns whatever chunks the *other* pages produced rather than
+    raising, so one bad range doesn't discard an otherwise-good document —
+    but a caller that cares whether the document was fully indexed must pass
+    a list here and check it after the call; the previous behavior gave no
+    way to tell a fully-indexed document from a partially-indexed one.
+    Ignored for `parser="docling"`, which parses the whole document in one
+    pass and raises `DocumentEmbeddingParseError` on any failure rather than
+    silently dropping part of it.
     """
     extension = _get_extension(file_path)
     if extension not in MULTIMODAL_SUPPORTED_EXTENSIONS:
@@ -276,7 +296,10 @@ def process_document(
 
             if total_pages < 30:
                 logger.info(f"Small PDF detected ({total_pages} pages). Running sequentially...")
-                elements = _process_pdf_range(file_path, 1, total_pages)
+                range_elements, failed = _process_pdf_range(file_path, 1, total_pages)
+                elements = range_elements
+                if failed and pages_failed is not None:
+                    pages_failed.append((1, total_pages))
             else:
                 # Build 1-indexed page ranges
                 ranges = [
@@ -285,12 +308,15 @@ def process_document(
                 ]
 
                 with ProcessPoolExecutor(max_workers=max_workers) as executor:
-                    futures = [
-                        executor.submit(_process_pdf_range, file_path, start, end)
+                    futures = {
+                        executor.submit(_process_pdf_range, file_path, start, end): (start, end)
                         for start, end in ranges
-                    ]
+                    }
                     for future in futures:
-                        elements.extend(future.result())
+                        range_elements, failed = future.result()
+                        elements.extend(range_elements)
+                        if failed and pages_failed is not None:
+                            pages_failed.append(futures[future])
 
         else:
             handlers: Dict[str, Callable] = {

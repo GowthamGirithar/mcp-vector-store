@@ -31,7 +31,7 @@ import logging
 import os
 import uuid
 from datetime import datetime
-from typing import Annotated, Any, Dict, Optional
+from typing import Annotated, Any, Dict, List, Optional, Tuple
 
 from mcp.server.fastmcp import Context
 from pydantic import Field
@@ -65,6 +65,19 @@ def _hash_file(file_path: str) -> str:
         for block in iter(lambda: f.read(_HASH_CHUNK_SIZE), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def _format_pages_failed_note(pages_failed: List[Tuple[int, int]]) -> str:
+    """Trailing note appended to the tool's return string when one or more
+    PDF page ranges failed to parse — makes a partial ingest visible to the
+    caller instead of a plain "Successfully processed" that hides it."""
+    if not pages_failed:
+        return ""
+    ranges = ", ".join(f"{start}-{end}" for start, end in pages_failed)
+    return (
+        f"\nWARNING: {len(pages_failed)} page range(s) failed to parse and were "
+        f"skipped: {ranges}. This document is PARTIALLY indexed."
+    )
 
 
 @mcp.tool()
@@ -163,24 +176,37 @@ async def generate_document_embedding(
         # Step 1: chunking. count_tokens/max_tokens size each chunk to the
         # embedding model's actual token budget (see chunking/token_budget.py)
         # so no chunk is silently truncated by the model at embedding time.
+        # pages_failed collects any PDF page range that raised during
+        # partitioning (see chunking/process_document.py) — previously that
+        # failure was only logged, and the tool still reported success with
+        # whatever content happened to survive.
+        pages_failed: List[Tuple[int, int]] = []
         chunks = process_document(
             validated_file_path,
             parser=settings.document.parser,
             count_tokens=embedding_service.count_tokens,
             max_tokens=embedding_service.max_input_tokens,
+            pages_failed=pages_failed,
         )
         total_chunks = len(chunks)
+        pages_failed_note = _format_pages_failed_note(pages_failed)
 
         if ctx:
             await ctx.debug(f"Extracted {total_chunks} chunk(s)")
+            if pages_failed:
+                await ctx.error(
+                    f"'{source_filename}': {len(pages_failed)} PDF page range(s) failed to parse: {pages_failed}"
+                )
 
         if not chunks:
             if ctx:
                 await ctx.info(f"No chunks extracted from '{source_filename}'")
+            status = "FAILED to process" if pages_failed else "Processed"
             return (
-                f"Processed document '{source_filename}'\n"
+                f"{status} document '{source_filename}'\n"
                 f"Chunks extracted: 0\n"
                 f"Stored document IDs: 0"
+                f"{pages_failed_note}"
             )
 
         document_id = str(uuid.uuid4())
@@ -231,17 +257,19 @@ async def generate_document_embedding(
         doc_ids = await vector_db.store_documents(documents, validated_collection)
         invalidate_bm25_cache(validated_collection)
 
+        status = "Partially processed" if pages_failed else "Successfully processed"
         if ctx:
             await ctx.info(
-                f"Successfully processed document '{source_filename}' as {len(doc_ids)} chunk(s)"
+                f"{status} document '{source_filename}' as {len(doc_ids)} chunk(s)"
             )
 
         return (
-            f"Successfully processed document '{source_filename}'\n"
+            f"{status} document '{source_filename}'\n"
             f"Document ID: {document_id}\n"
             f"Collection: {validated_collection}\n"
             f"Chunks extracted: {total_chunks}\n"
             f"Stored document IDs: {len(doc_ids)}"
+            f"{pages_failed_note}"
         )
 
     except ValidationError as e:
