@@ -28,6 +28,15 @@ CASES = {
 @pytest.mark.asyncio
 @pytest.mark.parametrize("filename,expected", CASES.items(), ids=CASES.keys())
 async def test_generate_document_embedding_reports_chunk_counts(filename, expected, real_services):
+    # Pin the parser explicitly rather than relying on whatever
+    # DOCUMENT_PARSER the environment's .env resolves to (docling here) —
+    # the expected counts below are specific to unstructured's extraction
+    # behavior for these fixtures (e.g. docling only attaches a
+    # caption-less image to no chunk at all, see
+    # test_process_document_docling_attaches_tables_and_images).
+    settings = document_embedding_tool.get_settings()
+    settings.document.parser = "unstructured"
+
     result = await document_embedding_tool.generate_document_embedding(
         file_path=fixture_path(filename)
     )

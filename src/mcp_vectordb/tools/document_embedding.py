@@ -115,7 +115,9 @@ async def generate_document_embedding(
         ctx: FastMCP context for logging and progress reporting
 
     Returns:
-        A success message containing the document ID and total chunk count,
+        A success message containing the document ID, total chunk count, and
+        a modality breakdown (text/table/image chunk counts — a chunk counts
+        toward more than one bucket if it carries more than one modality),
         or a message noting the document was already ingested and skipped.
     """
     try:
@@ -189,6 +191,9 @@ async def generate_document_embedding(
             pages_failed=pages_failed,
         )
         total_chunks = len(chunks)
+        text_chunk_count = sum(1 for c in chunks if c.text.strip())
+        table_chunk_count = sum(1 for c in chunks if c.tableHTML)
+        image_chunk_count = sum(1 for c in chunks if c.imageBase64)
         pages_failed_note = _format_pages_failed_note(pages_failed)
 
         if ctx:
@@ -268,6 +273,9 @@ async def generate_document_embedding(
             f"Document ID: {document_id}\n"
             f"Collection: {validated_collection}\n"
             f"Chunks extracted: {total_chunks}\n"
+            f"Text chunks: {text_chunk_count}\n"
+            f"Table chunks: {table_chunk_count}\n"
+            f"Image chunks: {image_chunk_count}\n"
             f"Stored document IDs: {len(doc_ids)}"
             f"{pages_failed_note}"
         )
