@@ -1,0 +1,12 @@
+# Offline retrieval eval dependencies (tests/eval/). Kept separate from
+# requirements-dev.txt since these pull in a heavy, easily-conflicting
+# langchain/langgraph dependency tree that the main app/test suite doesn't
+# need. Versions are pinned together deliberately: newer langchain-community
+# (>=0.4) dropped the `chat_models.vertexai` submodule that ragas==0.2.10
+# still imports at module load time, which breaks `import ragas` entirely.
+-r requirements.txt
+ragas==0.2.10
+langchain==0.3.14
+langchain-core==0.3.29
+langchain-community==0.3.27
+langchain-openai==0.2.14
