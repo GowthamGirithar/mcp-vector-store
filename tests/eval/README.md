@@ -61,15 +61,8 @@ Each run writes a timestamped report to `tests/eval/reports/` (`.md` +
   the report for manual review of what `hybrid_search` confidently returned
   for an unanswerable question.
 
-## First real run (2026-09-02, gpt-4o-mini judge)
+## Results
 
-hit_rate@10: 1.00, MRR: 0.842, context_precision: 0.889, context_recall: 0.950.
-
-Worth a closer look before trusting this as a baseline: on the one
-multi-hop question spanning two chunks where hybrid_search only surfaced one
-of the two ground-truth chunks in its top-5, the deterministic hit-rate
-still scored 1.0 (it only checks whether *any* ground-truth chunk was
-returned) while Ragas scored context_precision/recall at 0.0 for that same
-question — the two metrics disagree because they're checking different
-things (any-hit vs. full-answer coverage), and it's exactly the kind of
-case a single metric would have hidden.
+See `RESULTS.md` for the metrics glossary and the run-by-run results log
+(per-question scores, findings, known gaps) — kept separate from this file
+so it doesn't get stale relative to the how-to instructions above.
