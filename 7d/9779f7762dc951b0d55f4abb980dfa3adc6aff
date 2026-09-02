@@ -1,0 +1,21 @@
+tests/eval/README.md
+  s_76627ad242e281::t_3fd3ef2f8c9a58 64,66-68
+tests/eval/RESULTS.md
+  s_76627ad242e281::t_c1b7a24aea1b58 1-107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "7d9779f7762dc951b0d55f4abb980dfa3adc6aff",
+  "prompts": {},
+  "sessions": {
+    "s_76627ad242e281": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "eb29733b-4b88-434f-adbc-89c235db222c",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    }
+  }
+}
