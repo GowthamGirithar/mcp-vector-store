@@ -33,7 +33,7 @@ import logging
 import os
 from concurrent.futures import ProcessPoolExecutor
 from io import BytesIO
-from typing import Callable, Dict, List, Literal, NamedTuple
+from typing import Callable, Dict, List, Literal, NamedTuple, Optional, Tuple
 
 import fitz  # PyMuPDF
 from docling_core.transforms.chunker import HybridChunker
@@ -44,7 +44,17 @@ from unstructured.partition.md import partition_md
 from unstructured.partition.pdf import partition_pdf
 from unstructured.partition.pptx import partition_pptx
 
+from .token_budget import split_text_to_budget
+
 logger = logging.getLogger(__name__)
+
+# Chunks under this many tokens are merged into their preceding sibling
+# (within the same chunk_by_title group) rather than embedded on their own —
+# see `token_budget.fit_chunks_to_budget`.
+DEFAULT_MIN_CHUNK_TOKENS = 20
+# Default token overlap carried between pieces of a chunk split for being
+# over the embedding model's budget.
+DEFAULT_CHUNK_OVERLAP_TOKENS = 32
 
 MULTIMODAL_SUPPORTED_EXTENSIONS = {".pdf", ".md", ".docx", ".pptx"}
 SUPPORTED_PARSERS = ("unstructured", "docling")
@@ -68,60 +78,42 @@ class MultimodalExtractionResult(NamedTuple):
     tableHTML: List[str]
     imageBase64: List[str]
 
-def _is_complex_pdf_page(page: fitz.Page) -> bool:
-    if len(page.get_images()) > 0:
-        return True
+def _process_pdf_range(file_path: str, start_page: int, end_page: int) -> Tuple[List, bool]:
+    """Worker function to process a range of PDF pages with `hi_res`.
 
-    if len(page.get_drawings()) >0:
-        return True
+    Every PDF page is partitioned with `hi_res` (layout-model-based
+    extraction) rather than being classified into `hi_res`/`fast` per page:
+    the prior classifier (`_is_complex_pdf_page`) always returned `True`
+    regardless of page content, so every page was already going through
+    `hi_res` in practice — this makes that the explicit, intended behavior
+    instead of a dead classification path, and accepts the cost of running
+    the layout model on plain-text pages in exchange for correctly capturing
+    tables (`infer_table_structure=True`) and images on every page,
+    including ones that a lighter classifier might misjudge as simple.
+    `partition_pdf` is still called once per assigned page range (not once
+    per page) so the layout model loads once per range rather than once per
+    page.
 
-    return True
-
-
-def _process_pdf_range(file_path: str, start_page: int, end_page: int) -> List:
-    """Worker function to process a range of PDF pages using Hybrid strategy.
-
-    Pages are grouped into contiguous runs by strategy so `partition_pdf` (and
-    its hi_res layout-model load) is called once per run instead of once per
-    page — calling it per page was re-initializing the layout model on every
-    page, dominating runtime even for small documents.
+    Returns `(elements, failed)`. A failed range returns `([], True)`
+    rather than raising, so one bad range doesn't abort every other
+    already-successful range in the same document — but `failed=True` lets
+    the caller (`process_document`) track and surface it, rather than a
+    document silently coming back partially indexed with no signal anywhere
+    that pages were dropped.
     """
-    doc = fitz.open(file_path)
-    strategies = [
-        "hi_res" if _is_complex_pdf_page(doc[page_idx - 1]) else "fast"
-        for page_idx in range(start_page, end_page + 1)
-    ]
-    doc.close()
-
-    runs = []
-    run_start = start_page
-    for offset in range(1, len(strategies)):
-        if strategies[offset] != strategies[offset - 1]:
-            runs.append((run_start, start_page + offset - 1, strategies[offset - 1]))
-            run_start = start_page + offset
-    runs.append((run_start, end_page, strategies[-1]))
-
-    range_elements = []
-    for run_start_page, run_end_page, strategy in runs:
-        try:
-            logger.info(
-                "Strategy and page range %s %s-%s", strategy, run_start_page, run_end_page
-            )
-
-            elements = partition_pdf(
-                filename=file_path,
-                strategy=strategy,
-                starting_page_number=run_start_page,
-                ending_page_number=run_end_page,
-                infer_table_structure=(strategy == "hi_res"),
-            )
-            range_elements.extend(elements)
-        except Exception as e:
-            logger.error(
-                f"Error processing pages {run_start_page}-{run_end_page} of '{file_path}': {e}"
-            )
-
-    return range_elements
+    try:
+        return partition_pdf(
+            filename=file_path,
+            strategy="hi_res",
+            starting_page_number=start_page,
+            ending_page_number=end_page,
+            infer_table_structure=True,
+        ), False
+    except Exception as e:
+        logger.error(
+            f"Error processing pages {start_page}-{end_page} of '{file_path}': {e}"
+        )
+        return [], True
 
 
 def _process_docling(file_path: str) -> List[MultimodalExtractionResult]:
@@ -234,6 +226,10 @@ def process_document(
     batch_size: int = 25,
     max_workers: int = 4,
     parser: Literal["unstructured", "docling"] = "unstructured",
+    count_tokens: Optional[Callable[[str], int]] = None,
+    max_tokens: Optional[int] = None,
+    chunk_overlap_tokens: int = DEFAULT_CHUNK_OVERLAP_TOKENS,
+    pages_failed: Optional[List[Tuple[int, int]]] = None,
 ) -> List[MultimodalExtractionResult]:
     """Partition `file_path` into multimodal chunks using the selected `parser`.
 
@@ -241,6 +237,29 @@ def process_document(
     pipeline. `parser="docling"` runs Docling's `DocumentConverter` +
     `HybridChunker` instead, for side-by-side comparison — it ignores
     `batch_size`/`max_workers`, which are `unstructured`-specific.
+
+    `count_tokens`/`max_tokens` (both required together to take effect —
+    pass the embedding service's own `count_tokens`/`max_input_tokens`) size
+    each chunk's text to the target embedding model's token budget: any
+    chunk that would otherwise be truncated by the model is split on
+    sentence boundaries into pieces that each fit, with `chunk_overlap_tokens`
+    of overlap carried between adjacent pieces so a fact sitting on a
+    sentence boundary isn't stranded in only one piece. Table/image payloads
+    ride with the first piece of the chunk they came from. Omitting both
+    (the default) skips this pass entirely — the `docling` parser is
+    unaffected either way, since `HybridChunker` already tokenizes internally.
+
+    `pages_failed`, if given a list, is appended in place with the
+    `(start_page, end_page)` of every PDF page range that raised during
+    partitioning. Those pages simply contribute no elements — this function
+    still returns whatever chunks the *other* pages produced rather than
+    raising, so one bad range doesn't discard an otherwise-good document —
+    but a caller that cares whether the document was fully indexed must pass
+    a list here and check it after the call; the previous behavior gave no
+    way to tell a fully-indexed document from a partially-indexed one.
+    Ignored for `parser="docling"`, which parses the whole document in one
+    pass and raises `DocumentEmbeddingParseError` on any failure rather than
+    silently dropping part of it.
     """
     extension = _get_extension(file_path)
     if extension not in MULTIMODAL_SUPPORTED_EXTENSIONS:
@@ -276,7 +295,10 @@ def process_document(
 
             if total_pages < 30:
                 logger.info(f"Small PDF detected ({total_pages} pages). Running sequentially...")
-                elements = _process_pdf_range(file_path, 1, total_pages)
+                range_elements, failed = _process_pdf_range(file_path, 1, total_pages)
+                elements = range_elements
+                if failed and pages_failed is not None:
+                    pages_failed.append((1, total_pages))
             else:
                 # Build 1-indexed page ranges
                 ranges = [
@@ -285,12 +307,15 @@ def process_document(
                 ]
 
                 with ProcessPoolExecutor(max_workers=max_workers) as executor:
-                    futures = [
-                        executor.submit(_process_pdf_range, file_path, start, end)
+                    futures = {
+                        executor.submit(_process_pdf_range, file_path, start, end): (start, end)
                         for start, end in ranges
-                    ]
+                    }
                     for future in futures:
-                        elements.extend(future.result())
+                        range_elements, failed = future.result()
+                        elements.extend(range_elements)
+                        if failed and pages_failed is not None:
+                            pages_failed.append(futures[future])
 
         else:
             handlers: Dict[str, Callable] = {
@@ -309,7 +334,11 @@ def process_document(
         elements,
         max_characters=5000,  # maximum characters per chunk
         new_after_n_chars=5000,
-        combine_text_under_n_chars=0,  # disable merging across headings
+        # 200 chars keeps chunk_by_title's own title-boundary-respecting merge
+        # from leaving slivers behind — measured on attention.pdf: combine=0
+        # left 54% of chunks under 10 tokens (median 7); combine=200 clears
+        # every sub-10-token chunk while barely moving the oversize count.
+        combine_text_under_n_chars=200,
         isolate_table=False,
     )
 
@@ -321,7 +350,15 @@ def process_document(
 
         for orig_el in chunk.metadata.orig_elements or []:
             if orig_el.category == _TABLE_CATEGORY:
-                table_html.append(orig_el.metadata.text_as_html)
+                html = orig_el.metadata.text_as_html
+                table_html.append(html)
+                # Table content used to be dropped from the embedded/searched
+                # text entirely (only `has_table: True` survived to metadata)
+                # — append it into the chunk's own text in document order,
+                # right where the table appeared, so its content is
+                # retrievable via both vector and BM25 search.
+                if html:
+                    text_parts.append(html)
             elif orig_el.category == _IMAGE_CATEGORY:
                 image_base64.append(orig_el.metadata.image_base64)
             elif orig_el.text:
@@ -335,7 +372,42 @@ def process_document(
             )
         )
 
+    if count_tokens is not None and max_tokens is not None:
+        results = _split_oversize_results(results, count_tokens, max_tokens, chunk_overlap_tokens)
+
     return results
+
+
+def _split_oversize_results(
+    results: List[MultimodalExtractionResult],
+    count_tokens: Callable[[str], int],
+    max_tokens: int,
+    overlap: int,
+) -> List[MultimodalExtractionResult]:
+    """Split any chunk whose text would be truncated by the embedding model.
+
+    Only splits — fragmentation is already handled upstream by
+    `combine_text_under_n_chars` in the `chunk_by_title` call above, which
+    (unlike a post-hoc merge here) can merge slivers without crossing the
+    title boundaries `chunk_by_title` itself decided on.
+    """
+    split_results: List[MultimodalExtractionResult] = []
+    for result in results:
+        pieces = split_text_to_budget(result.text, count_tokens, max_tokens, overlap)
+        if len(pieces) <= 1:
+            split_results.append(result)
+            continue
+        for i, piece in enumerate(pieces):
+            # table/image payloads ride with the first piece only, so a
+            # table is never duplicated across a chunk's split pieces
+            split_results.append(
+                MultimodalExtractionResult(
+                    text=piece,
+                    tableHTML=result.tableHTML if i == 0 else [],
+                    imageBase64=result.imageBase64 if i == 0 else [],
+                )
+            )
+    return split_results
 
 
 def _get_extension(file_path: str) -> str:

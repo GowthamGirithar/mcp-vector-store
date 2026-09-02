@@ -112,6 +112,18 @@ When generating embeddings for a **500+ page PDF** using the `hi_res` partitioni
 
 ---
 
+## Docling: Formula Handling, Images, and a Latency Comparison with Unstructured
+
+While evaluating **Docling** as an alternative document-parsing pipeline, a few practical gaps showed up:
+
+- **Formula inference is opt-in and costly** – Docling doesn't include mathematical formulas in the chunk output by default. Turning on formula inference does recover them, but it noticeably **increases processing latency**, so it's a tradeoff to enable only when formulas are actually needed downstream.
+- **Images aren't returned within the chunk either** – similar to formulas, image content isn't embedded into the chunk by default. Extracting images requires a **separate processing step** after the initial document conversion, rather than being available inline.
+- **Latency vs. Unstructured** – when compared against **Unstructured**, Docling's overall processing latency was higher on the same documents. This matters for pipelines where document-processing time is on the critical path (e.g., ingestion-time chunking before embedding).
+
+**Takeaway:** Docling's default output favors plain text extraction — formulas and images both need to be explicitly opted into or processed separately, and that comes at a latency cost that should be weighed against Unstructured's `hi_res`/`fast` tradeoff already noted above.
+
+---
+
 ## Fusion & Approximate Search Concepts
 
 When combining results from multiple retrieval methods (e.g., dense vector search + keyword/BM25 search), a few fusion concepts came up:
