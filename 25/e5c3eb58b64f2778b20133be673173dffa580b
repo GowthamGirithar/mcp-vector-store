@@ -1,0 +1,48 @@
+tests/test_hybrid_search.py
+  s_75b1070e7f9b7f::t_fc87b9c71d519c 6
+src/mcp_vectordb/chunking/token_budget.py
+  s_75b1070e7f9b7f::t_3c578f5006ba19 30
+docs/learning_experience.md
+  s_99352f33530542::t_f8800e752ba5d1 115-126
+src/mcp_vectordb/chunking/process_document.py
+  s_75b1070e7f9b7f::t_a3a49ddcf06922 357,360-361
+requirements.txt
+  s_34dfda3c7f1b17::t_1286ab0c90f5dd 13-14
+src/mcp_vectordb/search/bm25.py
+  s_34dfda3c7f1b17::t_370a7e57dc31cc 1,4,6,13-15,20,24,35,38-43,53-54,57-65
+  s_34dfda3c7f1b17::t_8448ac5c426589 3,7-11
+  s_34dfda3c7f1b17::t_ab599c8397bdf0 12
+  s_34dfda3c7f1b17::t_8e132244847796 16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "25e5c3eb58b64f2778b20133be673173dffa580b",
+  "prompts": {},
+  "sessions": {
+    "s_34dfda3c7f1b17": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6962cdb6-93b1-4fd7-b490-3f1ca381ea66",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    },
+    "s_75b1070e7f9b7f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "52adb971-d786-4373-bfd5-24ef70cd5169",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    },
+    "s_99352f33530542": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4db21d9c-b014-42a7-910f-38d8d3f8d458",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    }
+  }
+}
