@@ -27,7 +27,7 @@ the embedding service's own tokenizer:
 
 Table HTML and image payloads travel with whichever text piece they were
 attached to; a split only divides the chunk's *text*, never its table/image
-lists (tables are linearized as a whole — see `table_text.py` — so they are
+lists (a table's HTML is appended into the chunk text as a whole, so it is
 sized before this pass runs, not split by it).
 """
 

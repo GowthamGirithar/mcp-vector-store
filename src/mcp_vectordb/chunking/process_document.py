@@ -44,7 +44,6 @@ from unstructured.partition.md import partition_md
 from unstructured.partition.pdf import partition_pdf
 from unstructured.partition.pptx import partition_pptx
 
-from .table_text import linearize_table_html
 from .token_budget import split_text_to_budget
 
 logger = logging.getLogger(__name__)
@@ -355,12 +354,11 @@ def process_document(
                 table_html.append(html)
                 # Table content used to be dropped from the embedded/searched
                 # text entirely (only `has_table: True` survived to metadata)
-                # — linearize it into the chunk's own text in document order,
+                # — append it into the chunk's own text in document order,
                 # right where the table appeared, so its content is
                 # retrievable via both vector and BM25 search.
-                linearized = linearize_table_html(html)
-                if linearized:
-                    text_parts.append(linearized)
+                if html:
+                    text_parts.append(html)
             elif orig_el.category == _IMAGE_CATEGORY:
                 image_base64.append(orig_el.metadata.image_base64)
             elif orig_el.text:

@@ -3,8 +3,7 @@ filtering — see tools/search.py.
 
 These mock the vector DB and BM25 layer entirely so the tests exercise only
 the fusion/filtering logic in `hybrid_search`, not real embedding or BM25
-scoring (covered by test_table_text.py / the BM25Index implementation
-itself).
+scoring (covered by the BM25Index implementation's own tests).
 """
 
 from unittest.mock import AsyncMock, MagicMock, patch

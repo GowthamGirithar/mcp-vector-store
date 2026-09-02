@@ -1,19 +1,27 @@
-"""In-memory BM25 (Okapi) keyword search over a document corpus."""
+"""In-memory BM25 keyword search over a document corpus, backed by bm25s."""
 
-import math
-import re
-from typing import Dict, List, Tuple
+import logging
+from typing import List, Tuple
 
-_TOKEN_RE = re.compile(r"[a-z0-9]+")
+import bm25s
+
+# bm25s hardcodes its own logger to DEBUG on import, independent of the
+# app's logging config, and logs on every index build - silence it so a
+# rebuild-on-every-write index doesn't spam DEBUG-level logs.
+logging.getLogger("bm25s").setLevel(logging.WARNING)
+
+# No stopword removal / stemming: hybrid search relies on BM25 to catch exact
+# keyword and identifier matches (error codes, SKUs, etc.) that a stopword
+# list or stemmer could otherwise drop or distort.
+_TOKENIZE_KWARGS = dict(stopwords=None, return_ids=False, show_progress=False, lower=True)
 
 
 def tokenize(text: str) -> List[str]:
-    """Lowercase word tokenizer used for both indexing and querying."""
-    return _TOKEN_RE.findall(text.lower())
+    return bm25s.tokenize(text, **_TOKENIZE_KWARGS)[0]
 
 
 class BM25Index:
-    """BM25 Okapi ranking over a fixed corpus of (doc_id, text) pairs."""
+    """BM25 ranking over a fixed corpus of (doc_id, text) pairs."""
 
     def __init__(self, corpus: List[Tuple[str, str]], k1: float = 1.5, b: float = 0.75):
         """Build the index.
@@ -24,37 +32,15 @@ class BM25Index:
             k1: Term-frequency saturation parameter.
             b: Length-normalization parameter.
         """
-        self.k1 = k1
-        self.b = b
-
-        self.doc_ids: List[str] = []
-        self._doc_term_freqs: List[Dict[str, int]] = []
-        self._doc_lengths: List[int] = []
-
-        for doc_id, text in corpus:
-            terms = tokenize(text)
-            term_freqs: Dict[str, int] = {}
-            for term in terms:
-                term_freqs[term] = term_freqs.get(term, 0) + 1
-            self.doc_ids.append(doc_id)
-            self._doc_term_freqs.append(term_freqs)
-            self._doc_lengths.append(len(terms))
-
+        self.doc_ids: List[str] = [doc_id for doc_id, _ in corpus]
         self.num_docs = len(self.doc_ids)
-        self.avg_doc_length = (
-            sum(self._doc_lengths) / self.num_docs if self.num_docs else 0.0
-        )
 
-        # Document frequency per term, for IDF.
-        self._doc_freq: Dict[str, int] = {}
-        for term_freqs in self._doc_term_freqs:
-            for term in term_freqs:
-                self._doc_freq[term] = self._doc_freq.get(term, 0) + 1
-
-        self._idf: Dict[str, float] = {
-            term: math.log(1 + (self.num_docs - df + 0.5) / (df + 0.5))
-            for term, df in self._doc_freq.items()
-        }
+        self._retriever = None
+        if self.num_docs:
+            texts = [text for _, text in corpus]
+            corpus_tokens = bm25s.tokenize(texts, **_TOKENIZE_KWARGS)
+            self._retriever = bm25s.BM25(k1=k1, b=b)
+            self._retriever.index(corpus_tokens, show_progress=False)
 
     def search(self, query: str, top_k: int) -> List[Tuple[str, float]]:
         """Return up to ``top_k`` (doc_id, score) pairs ranked by BM25 score.
@@ -64,28 +50,17 @@ class BM25Index:
         if self.num_docs == 0:
             return []
 
-        query_terms = tokenize(query)
-        if not query_terms:
+        query_tokens = bm25s.tokenize(query, **_TOKENIZE_KWARGS)
+        if not any(query_tokens):
             return []
 
-        scores = [0.0] * self.num_docs
-        for term in query_terms:
-            idf = self._idf.get(term)
-            if idf is None:
-                continue
-            for i in range(self.num_docs):
-                term_freqs = self._doc_term_freqs[i]
-                freq = term_freqs.get(term)
-                if not freq:
-                    continue
-                doc_len = self._doc_lengths[i]
-                denom = freq + self.k1 * (
-                    1 - self.b + self.b * (doc_len / self.avg_doc_length if self.avg_doc_length else 0)
-                )
-                scores[i] += idf * (freq * (self.k1 + 1)) / denom
+        k = min(top_k, self.num_docs)
+        indices, scores = self._retriever.retrieve(
+            query_tokens, k=k, show_progress=False
+        )
 
-        ranked = [
-            (self.doc_ids[i], scores[i]) for i in range(self.num_docs) if scores[i] > 0
+        return [
+            (self.doc_ids[doc_index], float(score))
+            for doc_index, score in zip(indices[0], scores[0])
+            if score > 0
         ]
-        ranked.sort(key=lambda item: item[1], reverse=True)
-        return ranked[:top_k]
