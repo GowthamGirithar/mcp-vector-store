@@ -4,6 +4,14 @@ import asyncio
 import logging
 from typing import List, Tuple
 
+try:
+    from langsmith import traceable
+except ImportError:
+    def traceable(*_args, **_kwargs):
+        def _decorator(fn):
+            return fn
+        return _decorator
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -20,6 +28,7 @@ def _get_model(model_name: str):
     return _model_cache[model_name]
 
 
+@traceable(run_type="chain", name="cross_encoder_rerank")
 async def rerank(
     query: str,
     candidates: List[Tuple[str, str]],

@@ -7,7 +7,33 @@ from ..models.document import Document, SearchResult
 from .interfaces import VectorDBAdapter
 from ..utils.exceptions import VectorDBError, ConnectionError
 
+try:
+    from langsmith import traceable
+except ImportError:
+    def traceable(*_args, **_kwargs):
+        def _decorator(fn):
+            return fn
+        return _decorator
+
 logger = logging.getLogger(__name__)
+
+
+def _vector_search_inputs(inputs: dict) -> dict:
+    processed = dict(inputs)
+    if "query_embedding" in processed:
+        vector = processed["query_embedding"]
+        processed["query_embedding"] = f"<{len(vector)}-dim vector>"
+    return processed
+
+
+def _vector_search_outputs(results: List[SearchResult]) -> dict:
+    return {
+        "count": len(results),
+        "results": [
+            {"id": r.document.id, "score": r.score, "distance": r.distance}
+            for r in results
+        ],
+    }
 
 
 class BaseVectorDBAdapter(VectorDBAdapter):
@@ -159,6 +185,12 @@ class BaseVectorDBAdapter(VectorDBAdapter):
         
         return await self._store_documents_impl(documents, collection)
     
+    @traceable(
+        run_type="retriever",
+        name="vector_similarity_search",
+        process_inputs=_vector_search_inputs,
+        process_outputs=_vector_search_outputs,
+    )
     async def similarity_search(
         self,
         query_embedding: List[float],

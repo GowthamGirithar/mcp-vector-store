@@ -20,6 +20,14 @@ from ..utils.validation import (
 )
 from ..utils.exceptions import VectorDBError, ValidationError
 
+try:
+    from langsmith import traceable
+except ImportError:
+    def traceable(*_args, **_kwargs):
+        def _decorator(fn):
+            return fn
+        return _decorator
+
 
 @mcp.tool()
 async def store_text(
@@ -39,10 +47,20 @@ async def store_text(
         collection: Collection name to store the document in (default: "documents")
         metadata: Optional metadata for the document
         ctx: FastMCP context for logging and progress reporting
-        
+
     Returns:
         Success message with document details
     """
+    return await _store_text_traced(text, collection, metadata, ctx)
+
+
+@traceable(run_type="chain", name="store_text")
+async def _store_text_traced(
+    text: str,
+    collection: str,
+    metadata: Optional[Dict[str, Any]],
+    ctx: Context,
+) -> str:
     try:
         vector_db = get_vector_db()
         embedding_service = get_embedding_service()

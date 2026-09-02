@@ -222,7 +222,7 @@ flowchart TB
 - `chunking/` — document parsing/chunking (`process_document.py`)
 - `core/` — document embedding orchestration (`document_embedding.py`, `agentic_chunking.py`)
 - `embedding/` — embedding provider abstraction (OpenAI, Sentence-Transformers) + cache
-- `llm/` — LLM completion service abstraction (OpenAI), used by agentic embedding
+- `llm/` — LLM completion service abstraction (OpenAI), used by agentic embedding; traced via LangSmith when enabled
 - `search/` — BM25 index, RRF fusion, cross-encoder reranker
 - `models/` — shared data models (`Document`)
 - `tools/` — MCP tool definitions (`storage.py`, `search.py`, `document_embedding.py`, `agentic_embedding.py`)
@@ -258,6 +258,24 @@ python main.py
 ```
 
 Transport mode is set via `.env` (`MCP_TRANSPORT`): `stdio`, `sse`, or `streamable-http`.
+
+### LangSmith Tracing (optional)
+
+LLM calls, embedding generation, and the full `hybrid_search` retrieval pipeline can be traced in [LangSmith](https://smith.langchain.com). Set these in `.env` to enable it — leave them unset to disable tracing entirely:
+
+```
+LANGSMITH_TRACING=true
+LANGSMITH_API_KEY=<your-langsmith-api-key>
+LANGSMITH_PROJECT=mcp-vectordb-server
+```
+
+No further code changes are needed to toggle this:
+- The OpenAI client in `llm/openai_service.py` is always wrapped with LangSmith's `wrap_openai`.
+- `SentenceTransformerEmbeddingService.generate_embedding`/`generate_embeddings` in `embedding/local_service.py` are decorated with `@traceable(run_type="embedding")`.
+- `similarity_search` and `hybrid_search` (`tools/search.py`) are each decorated with `@traceable(run_type="chain")` as the trace root, so every call nests under one trace per query.
+- Within `hybrid_search`, `BM25Index.search` (`search/bm25.py`), `reciprocal_rank_fusion` (`search/fusion.py`), and `rerank` (`search/reranker.py`) are each traced as sub-steps.
+
+All only export traces when `LANGSMITH_TRACING=true` and a valid API key are present; embedding cache hits (`CachedEmbeddingService`) are not traced since no model computation occurs.
 
 ## How to Connect
 

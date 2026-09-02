@@ -13,6 +13,14 @@ from ..utils.exceptions import VectorDBError, ValidationError
 from ..search import BM25Index, reciprocal_rank_fusion
 from ..search import rerank as cross_encoder_rerank
 
+try:
+    from langsmith import traceable
+except ImportError:
+    def traceable(*_args, **_kwargs):
+        def _decorator(fn):
+            return fn
+        return _decorator
+
 logger = logging.getLogger(__name__)
 
 # collection -> (document_count, BM25Index). Primary invalidation is explicit:
@@ -82,6 +90,16 @@ async def similarity_search(
     Returns:
         List of matching document text content
     """
+    return await _similarity_search_traced(query, collection, filters, ctx)
+
+
+@traceable(run_type="chain", name="similarity_search")
+async def _similarity_search_traced(
+    query: str,
+    collection: str,
+    filters: Optional[Dict[str, Any]],
+    ctx: Context,
+) -> List[str]:
     try:
         vector_db = get_vector_db()
         embedding_service = get_embedding_service()
@@ -184,6 +202,16 @@ async def hybrid_search(
     Returns:
         List of matching document text content
     """
+    return await _hybrid_search_traced(query, collection, filters, ctx)
+
+
+@traceable(run_type="chain", name="hybrid_search")
+async def _hybrid_search_traced(
+    query: str,
+    collection: str,
+    filters: Optional[Dict[str, Any]],
+    ctx: Context,
+) -> List[str]:
     try:
         vector_db = get_vector_db()
         embedding_service = get_embedding_service()

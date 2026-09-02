@@ -29,6 +29,14 @@ from ..models.document import Document
 from .search import invalidate_bm25_cache
 from ..utils.exceptions import ValidationError, VectorDBError, LLMServiceError
 
+try:
+    from langsmith import traceable
+except ImportError:
+    def traceable(*_args, **_kwargs):
+        def _decorator(fn):
+            return fn
+        return _decorator
+
 logger = logging.getLogger(__name__)
 
 
@@ -69,6 +77,18 @@ async def agentic_generate_embedding(
     Returns:
         A success message containing the document ID and total chunk count.
     """
+    return await _agentic_generate_embedding_traced(prompt, file_path, text, collection, metadata, ctx)
+
+
+@traceable(run_type="chain", name="agentic_generate_embedding")
+async def _agentic_generate_embedding_traced(
+    prompt: str,
+    file_path: Optional[str],
+    text: Optional[str],
+    collection: str,
+    metadata: Optional[Dict[str, Any]],
+    ctx: Context,
+) -> str:
     try:
         vector_db = get_vector_db()
         embedding_service = get_embedding_service()

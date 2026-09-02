@@ -5,6 +5,14 @@ from typing import List, Tuple
 
 import bm25s
 
+try:
+    from langsmith import traceable
+except ImportError:
+    def traceable(*_args, **_kwargs):
+        def _decorator(fn):
+            return fn
+        return _decorator
+
 # bm25s hardcodes its own logger to DEBUG on import, independent of the
 # app's logging config, and logs on every index build - silence it so a
 # rebuild-on-every-write index doesn't spam DEBUG-level logs.
@@ -42,6 +50,7 @@ class BM25Index:
             self._retriever = bm25s.BM25(k1=k1, b=b)
             self._retriever.index(corpus_tokens, show_progress=False)
 
+    @traceable(run_type="retriever", name="bm25.search")
     def search(self, query: str, top_k: int) -> List[Tuple[str, float]]:
         """Return up to ``top_k`` (doc_id, score) pairs ranked by BM25 score.
 

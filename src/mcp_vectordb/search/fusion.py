@@ -2,7 +2,16 @@
 
 from typing import Dict, List, Sequence, Tuple
 
+try:
+    from langsmith import traceable
+except ImportError:
+    def traceable(*_args, **_kwargs):
+        def _decorator(fn):
+            return fn
+        return _decorator
 
+
+@traceable(run_type="chain", name="reciprocal_rank_fusion")
 def reciprocal_rank_fusion(
     rankings: Sequence[Sequence[str]],
     k: int = 60,

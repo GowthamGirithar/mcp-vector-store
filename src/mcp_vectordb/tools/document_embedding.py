@@ -53,6 +53,14 @@ from ..utils.validation import (
 )
 from ..utils.exceptions import ValidationError, VectorDBError
 
+try:
+    from langsmith import traceable
+except ImportError:
+    def traceable(*_args, **_kwargs):
+        def _decorator(fn):
+            return fn
+        return _decorator
+
 logger = logging.getLogger(__name__)
 
 _HASH_CHUNK_SIZE = 1024 * 1024  # 1 MiB
@@ -120,6 +128,17 @@ async def generate_document_embedding(
         toward more than one bucket if it carries more than one modality),
         or a message noting the document was already ingested and skipped.
     """
+    return await _generate_document_embedding_traced(file_path, collection, metadata, force, ctx)
+
+
+@traceable(run_type="chain", name="generate_document_embedding")
+async def _generate_document_embedding_traced(
+    file_path: str,
+    collection: str,
+    metadata: Optional[Dict[str, Any]],
+    force: bool,
+    ctx: Context,
+) -> str:
     try:
         settings = get_settings()
         vector_db = get_vector_db()

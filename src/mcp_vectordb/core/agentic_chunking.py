@@ -20,6 +20,14 @@ from ..chunking.raw_text import extract_raw_text, extract_title_sections
 from ..llm.base import LLMService
 from ..utils.exceptions import LLMServiceError
 
+try:
+    from langsmith import traceable
+except ImportError:
+    def traceable(*_args, **_kwargs):
+        def _decorator(fn):
+            return fn
+        return _decorator
+
 logger = logging.getLogger(__name__)
 
 _SYSTEM_PROMPT = (
@@ -73,6 +81,7 @@ def _extract_records(parsed: Any) -> List[Dict[str, Any]]:
     )
 
 
+@traceable(run_type="chain", name="agentic_chunk_text")
 async def agentic_chunk_text(
     text: str, prompt: str, llm_service: LLMService, max_input_chars: int
 ) -> List[AgenticChunk]:
@@ -124,6 +133,7 @@ async def agentic_chunk_text(
     return chunks
 
 
+@traceable(run_type="chain", name="agentic_chunk_document")
 async def agentic_chunk_document(
     file_path: str, prompt: str, llm_service: LLMService, max_input_chars: int
 ) -> List[AgenticChunk]:

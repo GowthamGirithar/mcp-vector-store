@@ -6,6 +6,11 @@ from openai import AsyncOpenAI
 from .base import LLMService
 from ..utils.exceptions import LLMServiceError
 
+try:
+    from langsmith.wrappers import wrap_openai
+except ImportError:
+    wrap_openai = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -14,7 +19,11 @@ class OpenAILLMService(LLMService):
 
     def __init__(self, model: str = "gpt-4o-mini", api_key: Optional[str] = None):
         self.model = model
-        self._client = AsyncOpenAI(api_key=api_key)
+        client = AsyncOpenAI(api_key=api_key)
+        # wrap_openai instruments the client for LangSmith tracing; actual
+        # trace export is gated by the LANGSMITH_TRACING/LANGCHAIN_TRACING_V2
+        # env vars, so wrapping is a no-op unless those are set.
+        self._client = wrap_openai(client) if wrap_openai is not None else client
 
     async def complete(self, system_prompt: str, user_prompt: str) -> str:
         try:
