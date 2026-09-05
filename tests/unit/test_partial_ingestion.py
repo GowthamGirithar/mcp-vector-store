@@ -13,7 +13,7 @@ import pytest
 from mcp_vectordb.chunking.process_document import _process_pdf_range, process_document
 from mcp_vectordb.tools import document_embedding as document_embedding_tool
 
-FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
+FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "..", "fixtures")
 
 
 def fixture_path(name: str) -> str:

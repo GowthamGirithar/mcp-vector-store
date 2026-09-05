@@ -49,6 +49,8 @@ htmlcov/
 *.db
 *.sqlite
 chroma_db/
+tests/eval/.eval_chroma_db/
+tests/eval/experiments/
 
 # OS
 .DS_Store
