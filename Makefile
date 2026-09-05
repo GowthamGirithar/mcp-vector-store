@@ -25,8 +25,8 @@ test-integration:
 
 # Deterministic metrics only (hit-rate/MRR/NDCG) — no OpenAI judge, no Ragas.
 eval-deterministic:
-	python -m tests.eval.run_eval --no-judge
+	PYTHONPATH=src python -m tests.eval.run_eval --no-judge
 
 # Full eval including Ragas context_precision/context_recall via OpenAI judge.
 eval-all:
-	python -m tests.eval.run_eval
+	PYTHONPATH=src python -m tests.eval.run_eval

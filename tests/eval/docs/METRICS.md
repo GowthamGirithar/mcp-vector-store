@@ -1,107 +1,69 @@
-# hybrid_search retrieval eval — results log
+# Hybrid Search - Retrieval - eval
 
-Reference doc for what the metrics mean and a running log of eval runs, kept
-separate from `README.md` (which covers setup/how-to). See `README.md` for
-how to reproduce any of these numbers.
+## Out of scope
 
-## Metrics glossary
+This eval covers **retrieval only** — the `hybrid_search` tool. It does not
+cover the generation part of a RAG pipeline (no answer is generated from the
+retrieved chunks, and no generation quality is scored).
 
-| Metric | Computed how | What it actually catches |
-|---|---|---|
-| `hit_rate@k` | 1.0 if *any* chunk `hybrid_search` returns matches *any* of the question's `ground_truth_chunk_indices`, else 0.0. Averaged over all non-negative questions. | Coarse recall — retrieval found at least one relevant chunk somewhere in the top-k. Cheap (no LLM call), but blind to whether *all* the info needed to answer was retrieved. |
-| `mrr` | `1 / rank` of the first matching chunk (0 if none matched). Averaged over all non-negative questions. | Ranking quality — rewards a relevant chunk appearing earlier in the returned list, not just being present somewhere in it. |
-| `context_precision` | Ragas `LLMContextPrecisionWithReference`, OpenAI-judged: for each retrieved chunk, is it actually relevant to answering the question, weighted by rank. | Noise in the returned set — a high hit-rate with low precision means retrieval is surfacing correct-and-irrelevant chunks together. |
-| `context_recall` | Ragas `LLMContextRecall`, OpenAI-judged: decomposes `ground_truth_answer` into individual claims and checks whether each is supported by the retrieved chunks *combined*. | Full-answer coverage — catches the case `hit_rate` misses: a multi-hop question where only part of the needed information was retrieved. |
+This is why **answer relevancy** and **faithfulness** are not covered: both
+are Ragas metrics that score a *generated* answer against the question
+and/or the retrieved context. With no generation step in this eval, there is
+no generated answer to score them against.
 
-`hit_rate`/`mrr` are computed against `ground_truth_chunk_indices` (structural
-ground truth: which chunks *should* come back). `context_precision`/`recall`
-are computed against `ground_truth_answer` (semantic ground truth: what the
-answer actually says), judged by an LLM. They're deliberately checking
-different things — see the q19 disagreement below for why that matters.
+## Metrics
 
-Negative-control questions (`difficulty: "negative"`) are excluded from all
-aggregates — there's no ground-truth chunk or answer to score against. They're
-included in the golden set to eyeball whether `hybrid_search` confidently
-returns something that *looks* like an answer for a question the paper never
-addresses.
-
-## Runs
-
-### 2026-09-02 — baseline (gpt-4o-mini judge, no reranker, top_k=10)
-
-Config: `search.use_reranker=False`, `search.default_top_k=10`,
-`search.vector_weight=1.0`, `search.bm25_weight=1.0` (repo defaults, unchanged).
-
-| metric | value |
+| Metric | Definition |
 |---|---|
-| hit_rate@10 | 1.000 (20/20) |
-| mrr | 0.842 |
-| context_precision | 0.889 |
-| context_recall | 0.950 |
+| `hit_rate@k` | Deterministic. 1.0 if *any* chunk `hybrid_search` returns matches *any* of the question's ground-truth chunks, else 0.0. Averaged over all non-negative questions. |
+| `mrr` | Deterministic. `1 / rank` of the first matching chunk (0 if none matched). Averaged over all non-negative questions. |
+| `ndcg` | Deterministic. Binary-relevance NDCG@k: `DCG = sum(1/log2(rank+1))` over every retrieved chunk that's a ground-truth chunk, normalized by the ideal DCG (all ground-truth chunks ranked first). Averaged over all non-negative questions. |
+| `context_precision` | Ragas `LLMContextPrecisionWithReference`, OpenAI-judged. For each retrieved chunk, is it actually relevant to answering the question, weighted by rank. |
+| `context_recall` | Ragas `LLMContextRecall`, OpenAI-judged. Decomposes the ground-truth answer into individual claims and checks whether each is supported by the retrieved chunks combined. |
 
-Per-question:
+`hit_rate`/`mrr`/`ndcg` are computed against `ground_truth_chunk_indices`
+(structural ground truth: which chunks *should* come back) and require no
+LLM call. `context_precision`/`context_recall` are computed against
+`ground_truth_answer` (semantic ground truth: what the answer actually
+says), judged by an LLM. They deliberately check different things — a
+question can score a perfect `hit_rate` while still scoring low on
+`context_recall` if only part of a multi-hop answer was retrieved.
 
-| id | difficulty | hit | mrr | ctx_precision | ctx_recall |
-|---|---|---|---|---|---|
-| q01 | easy | 1.0 | 1.000 | 1.000 | 1.000 |
-| q02 | easy | 1.0 | 0.500 | 0.583 | 1.000 |
-| q03 | easy | 1.0 | 1.000 | 1.000 | 1.000 |
-| q04 | easy | 1.0 | 1.000 | 1.000 | 1.000 |
-| q05 | easy | 1.0 | 1.000 | 0.833 | 1.000 |
-| q06 | easy | 1.0 | 1.000 | 0.917 | 1.000 |
-| q07 | easy | 1.0 | 1.000 | 1.000 | 1.000 |
-| q08 | easy | 1.0 | 0.500 | 1.000 | 1.000 |
-| q09 | easy | 1.0 | 0.500 | 1.000 | 1.000 |
-| q10 | easy | 1.0 | 1.000 | 1.000 | 1.000 |
-| q11 | easy | 1.0 | 0.500 | 1.000 | 1.000 |
-| q12 | easy | 1.0 | 1.000 | 1.000 | 1.000 |
-| q13 | easy | 1.0 | 1.000 | 1.000 | 1.000 |
-| q14 | easy | 1.0 | 1.000 | 1.000 | 1.000 |
-| q15 | easy | 1.0 | 1.000 | 1.000 | 1.000 |
-| q16 | easy | 1.0 | 0.333 | 0.583 | 1.000 |
-| q17 | multi-hop | 1.0 | 1.000 | 1.000 | 1.000 |
-| q18 | multi-hop | 1.0 | 0.500 | 0.867 | 1.000 |
-| q19 | multi-hop | 1.0 | 1.000 | **0.000** | **0.000** |
-| q20 | easy | 1.0 | 1.000 | 1.000 | 1.000 |
-| q21 | negative | – | – | – | – |
-| q22 | negative | – | – | – | – |
-| q23 | negative | – | – | – | – |
+Negative-control questions (`metadata.difficulty: "negative"`) are excluded
+from all aggregates — there's no ground-truth chunk or answer to score
+against. They're included in the golden set to eyeball whether
+`hybrid_search` confidently returns something that *looks* like an answer
+for a question the paper never addresses.
 
-**Finding — q19 (metric disagreement):** *"What state-of-the-art BLEU score
-did the Transformer achieve on English-to-German translation, and what beam
-size was used to obtain it during inference?"* (ground truth spans chunk 37 —
-BLEU 28.4 — and chunk 38 — beam size 4). `hybrid_search`'s top-5 only
-contained chunk 37; chunk 38 (beam size) never made it into the candidate
-pool. `hit_rate` still scored this 1.0 because it only requires matching *any*
-ground-truth chunk — it can't tell a fully-answered question from a
-half-answered one. Ragas scored `context_precision`/`context_recall` at 0.0
-for the same question, correctly reflecting that the retrieved context alone
-can't support the full reference answer. This is the reason both metric
-families are worth running together rather than picking one: a
-purely-deterministic eval would have reported this question as a clean pass.
+## Golden Dataset
 
-Not yet investigated: whether 0.0 (rather than a partial score reflecting
-"BLEU claim supported, beam-size claim not") is Ragas correctly scoring a
-compound claim as a single unit, or a judge-scoring artifact — worth a closer
-look before leaning on `context_precision`/`context_recall` as a trusted
-per-question signal rather than just an aggregate directional one.
+**Source:** `tests/fixtures/attention.pdf` (the "Attention Is All You Need"
+paper). Questions were hand-authored against this single document.
 
-**Negative controls:** for all three (implementation language/framework,
-SQuAD accuracy, carbon footprint — none addressed by the paper),
-`hybrid_search` returned topically-adjacent chunks (e.g. training
-hardware/schedule for the carbon-footprint question) rather than anything
-that reads as a confident, specific, wrong answer. No false-positive-looking
-retrieval observed in this run.
+**Where it's maintained:**
 
-## Known gaps in this eval (by design, see conversation history)
+- `tests/eval/datasets/attention_qa.jsonl` — the golden Q&A set itself. Each
+  question references ground truth by **`chunk_index`**, not `chunk_id`:
+  `chunk_id`s are regenerated on every ingestion (see
+  `tools/document_embedding.py`), so `chunk_index` (deterministic parse
+  order) is the only key that survives re-ingestion. Non-scoring fields
+  (e.g. `difficulty`) live under a nested `metadata` object rather than as
+  top-level keys, so the record's scoring inputs stay unambiguous as more
+  metadata gets added.
+- `tests/eval/datasets/attention_chunks.json` — a point-in-time dump of
+  every chunk's text, kept for reference when authoring new questions
+  against known chunk boundaries/content. Regenerate manually via
+  `generate_document_embedding(force=True)` +
+  `vector_db.get_all_documents(...)` if the golden set needs rebuilding from
+  scratch (the one-off script used to produce it was removed after initial
+  authoring).
 
-- Table/image chunks are excluded from the golden set entirely — no
-  ground truth touches a `has_table`/`has_image` chunk yet.
-- Only `hybrid_search` is covered. `similarity_search` (vector-only) and
-  `generate_document_embedding` (ingestion correctness) have no eval yet.
-- No comparison run with `use_reranker=True` or different
-  `vector_weight`/`bm25_weight` — this baseline is the repo's current
-  defaults only.
-- 20 scored questions (+3 negative) is enough to sanity-check the harness,
-  not enough to treat any single-point score change as statistically
-  meaningful — treat deltas as directional until the set grows.
+**What's out of scope for this dataset:**
+
+- Table/image chunks are excluded entirely — no question's ground truth
+  touches a `has_table`/`has_image` chunk.
+- Only one source document (`attention.pdf`) is covered — no
+  cross-document or multi-document retrieval questions.
+- 20 scored questions (+3 negative controls) is enough to sanity-check the
+  eval harness, not a large enough set to treat any single-point score
+  change as statistically meaningful.

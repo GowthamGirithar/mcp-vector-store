@@ -4,12 +4,14 @@ built from tests/fixtures/attention.pdf.
 For each golden question, runs `hybrid_search` and computes:
   - hit_rate: whether any returned chunk matches a ground-truth chunk index
   - MRR: reciprocal rank of the first matching chunk
+  - NDCG: binary-relevance NDCG@k against all ground-truth chunks, not just
+    the first hit
   - (unless --no-judge) Ragas context_precision / context_recall, scored by
     an OpenAI judge against `ground_truth_answer`
 
 Negative-control questions (empty `ground_truth_chunk_indices`) are excluded
-from hit_rate/MRR/Ragas aggregates — there is no ground-truth chunk to score
-against — and are reported separately so a human can eyeball whether
+from hit_rate/MRR/NDCG/Ragas aggregates — there is no ground-truth chunk to
+score against — and are reported separately so a human can eyeball whether
 hybrid_search confidently returned an irrelevant chunk for an unanswerable
 question.
 
@@ -22,17 +24,19 @@ import asyncio
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-from tests.eval.setup_services import init_eval_services
-from mcp_vectordb.services import get_vector_db
-from mcp_vectordb.tools.document_embedding import generate_document_embedding
+from tests.eval.metrics.precision import score_context_precision
+from tests.eval.metrics.rank import compute_hit_rate_and_mrr, compute_ndcg
+from tests.eval.metrics.recall import score_context_recall
+from tests.eval.setup.ingestion import map_text_to_chunk_index, ensure_ingested
+from tests.eval.setup.setup_services import init_eval_services
 from mcp_vectordb.tools.search import hybrid_search
 
 EVAL_COLLECTION = "eval_attention"
 PDF_PATH = "tests/fixtures/attention.pdf"
-GOLDEN_PATH = Path("tests/eval/golden/attention_qa.jsonl")
-REPORTS_DIR = Path("tests/eval/reports")
+GOLDEN_PATH = Path("tests/eval/datasets/attention_qa.jsonl")
+REPORTS_DIR = Path("tests/eval/experiments")
 
 
 def load_golden(path: Path) -> List[Dict[str, Any]]:
@@ -40,76 +44,14 @@ def load_golden(path: Path) -> List[Dict[str, Any]]:
         return [json.loads(line) for line in f if line.strip()]
 
 
-async def ensure_ingested() -> None:
-    """Ingest attention.pdf into EVAL_COLLECTION if not already present.
-
-    force=False: a prior ingestion (matched by content hash) is left as-is,
-    so chunk_ids/chunk_index assignments stay stable across eval runs rather
-    than churning on every invocation.
-    """
-    result = await generate_document_embedding(
-        file_path=PDF_PATH, collection=EVAL_COLLECTION, force=False, ctx=None
-    )
-    print(result)
-
-
-async def build_text_to_chunk_index() -> Dict[str, int]:
-    """Map each stored chunk's exact text to its chunk_index.
-
-    hybrid_search returns bare text strings, not ids, and chunk_ids are
-    regenerated on every ingestion — chunk_index (deterministic parse order)
-    is the only stable key the golden dataset can reference, so results are
-    joined back to ground truth via an exact text match against this map.
-    """
-    vector_db = get_vector_db()
-    docs = await vector_db.get_all_documents(EVAL_COLLECTION)
-    return {doc.text: doc.metadata.get("chunk_index") for doc in docs}
-
-
-def compute_hit_rate_and_mrr(
-    retrieved_texts: List[str],
-    ground_truth_indices: List[int],
-    text_to_index: Dict[str, int],
-) -> Dict[str, float]:
-    ground_truth_set = set(ground_truth_indices)
-    rank_of_first_hit: Optional[int] = None
-    for rank, text in enumerate(retrieved_texts, start=1):
-        chunk_index = text_to_index.get(text)
-        if chunk_index in ground_truth_set:
-            rank_of_first_hit = rank
-            break
-    return {
-        "hit": 1.0 if rank_of_first_hit is not None else 0.0,
-        "mrr": 1.0 / rank_of_first_hit if rank_of_first_hit is not None else 0.0,
-    }
-
-
-async def score_with_ragas(
-    question: str, retrieved_texts: List[str], reference: str, judge_llm
-) -> Dict[str, float]:
-    from ragas.dataset_schema import SingleTurnSample
-    from ragas.metrics import LLMContextPrecisionWithReference, LLMContextRecall
-
-    sample = SingleTurnSample(
-        user_input=question,
-        retrieved_contexts=retrieved_texts,
-        reference=reference,
-    )
-    precision_metric = LLMContextPrecisionWithReference(llm=judge_llm)
-    recall_metric = LLMContextRecall(llm=judge_llm)
-    precision = await precision_metric.single_turn_ascore(sample)
-    recall = await recall_metric.single_turn_ascore(sample)
-    return {"context_precision": precision, "context_recall": recall}
-
-
 async def run(use_judge: bool) -> Dict[str, Any]:
     await init_eval_services()
-    await ensure_ingested()
-    text_to_index = await build_text_to_chunk_index()
+    await ensure_ingested(PDF_PATH, EVAL_COLLECTION)
+    text_to_index = await map_text_to_chunk_index(EVAL_COLLECTION)
 
     judge_llm = None
     if use_judge:
-        from tests.eval.judge import get_judge_llm
+        from tests.eval.metrics.judge import get_judge_llm
 
         judge_llm = get_judge_llm()
 
@@ -121,10 +63,11 @@ async def run(use_judge: bool) -> Dict[str, Any]:
             query=item["question"], collection=EVAL_COLLECTION, filters=None, ctx=None
         )
 
+        difficulty = item["metadata"]["difficulty"]
         row: Dict[str, Any] = {
             "id": item["id"],
             "question": item["question"],
-            "difficulty": item["difficulty"],
+            "difficulty": difficulty,
             "ground_truth_chunk_indices": item["ground_truth_chunk_indices"],
             "retrieved_count": len(retrieved_texts),
             "retrieved_preview": [t[:200] for t in retrieved_texts[:5]],
@@ -137,15 +80,22 @@ async def run(use_judge: bool) -> Dict[str, Any]:
                     retrieved_texts, item["ground_truth_chunk_indices"], text_to_index
                 )
             )
+            row["ndcg"] = compute_ndcg(
+                retrieved_texts, item["ground_truth_chunk_indices"], text_to_index
+            )
             if judge_llm is not None:
-                row.update(
-                    await score_with_ragas(
-                        item["question"], retrieved_texts, item["ground_truth_answer"], judge_llm
-                    )
+                row["context_precision"] = await score_context_precision(
+                    item["question"], retrieved_texts, item["ground_truth_answer"], judge_llm
+                )
+                row["context_recall"] = await score_context_recall(
+                    item["question"], retrieved_texts, item["ground_truth_answer"], judge_llm
                 )
 
         per_question_results.append(row)
-        print(f"[{item['id']}] {item['difficulty']:10s} hit={row.get('hit')} mrr={row.get('mrr')}")
+        print(
+            f"[{item['id']}] {difficulty:10s} hit={row.get('hit')} mrr={row.get('mrr')} "
+            f"ndcg={row.get('ndcg')}"
+        )
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -161,6 +111,7 @@ def aggregate(results: List[Dict[str, Any]]) -> Dict[str, float]:
     agg = {
         "hit_rate": sum(r["hit"] for r in scored) / len(scored),
         "mrr": sum(r["mrr"] for r in scored) / len(scored),
+        "ndcg": sum(r["ndcg"] for r in scored) / len(scored),
     }
     if "context_precision" in scored[0]:
         agg["context_precision"] = sum(r["context_precision"] for r in scored) / len(scored)
@@ -191,11 +142,14 @@ def write_report(report: Dict[str, Any]) -> Path:
     for k, v in agg.items():
         lines.append(f"| {k} | {v:.3f} |")
 
-    lines += ["", "## Per-question", "", "| id | difficulty | hit | mrr" + (
+    lines += ["", "## Per-question", "", "| id | difficulty | hit | mrr | ndcg" + (
         " | ctx_precision | ctx_recall |" if report["used_judge"] else " |"
-    ), "|---|---|---|---" + ("|---|---|" if report["used_judge"] else "|")]
+    ), "|---|---|---|---|---" + ("|---|---|" if report["used_judge"] else "|")]
     for r in report["results"]:
-        base = f"| {r['id']} | {r['difficulty']} | {r.get('hit', '-')} | {r.get('mrr', '-')}"
+        base = (
+            f"| {r['id']} | {r['difficulty']} | {r.get('hit', '-')} | {r.get('mrr', '-')} "
+            f"| {r.get('ndcg', '-')}"
+        )
         if report["used_judge"]:
             base += f" | {r.get('context_precision', '-')} | {r.get('context_recall', '-')} |"
         else:
