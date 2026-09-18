@@ -53,6 +53,14 @@ async def setup_services(app):
         vector_db = VectorDBFactory.create_adapter(settings.vector_db)
         await vector_db.initialize()
         logger.info(f"Initialized vector database: {settings.vector_db.provider}")
+
+        if hasattr(vector_db, "configure_compression"):
+            vector_db.configure_compression(settings.compression)
+            if settings.compression.enabled or settings.compression.shadow_enabled:
+                logger.info(
+                    "TurboQuant compression configured: enabled=%s shadow_enabled=%s",
+                    settings.compression.enabled, settings.compression.shadow_enabled,
+                )
         
         # Health check
         if await vector_db.health_check():
