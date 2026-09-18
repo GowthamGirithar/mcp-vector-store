@@ -1,5 +1,6 @@
 """Search tools for the MCP Vector Database Server."""
 
+import asyncio
 import logging
 from typing import Annotated, Any, Dict, List, Optional, Tuple
 from mcp.server.fastmcp.server import Context
@@ -10,7 +11,7 @@ from ..services import get_vector_db, get_embedding_service
 from ..config.config import get_settings
 from ..utils.validation import validate_text, validate_collection_name, validate_top_k
 from ..utils.exceptions import VectorDBError, ValidationError
-from ..search import BM25Index, reciprocal_rank_fusion
+from ..search import BM25Index, reciprocal_rank_fusion, run_shadow_hybrid_search
 from ..search import rerank as cross_encoder_rerank
 
 try:
@@ -350,6 +351,25 @@ async def _hybrid_search_traced(
 
         if ctx:
             await ctx.info(f"Found {len(top_results)} results for query")
+
+        compression_config = get_settings().compression
+        if compression_config.shadow_enabled:
+            asyncio.create_task(
+                run_shadow_hybrid_search(
+                    query=validated_query,
+                    query_embedding=query_embedding,
+                    bm25_ranking=bm25_ranking,
+                    real_final_ranking=[doc_id for doc_id, _ in top_results],
+                    vector_db=vector_db,
+                    collection=validated_collection,
+                    filters=filters,
+                    compression_config=compression_config,
+                    rrf_k=search_config.rrf_k,
+                    vector_weight=search_config.vector_weight,
+                    bm25_weight=search_config.bm25_weight,
+                    top_k=validated_top_k,
+                )
+            )
 
         return [documents_by_id[doc_id].text for doc_id, _ in top_results]
 

@@ -1,20 +1,45 @@
 """ChromaDB adapter implementation for MCP Vector DB Server."""
 
 import asyncio
+import base64
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 
 import chromadb
+import numpy as np
 from chromadb.config import Settings as ChromaSettings
 from chromadb.api.models.Collection import Collection
 
 from .base import BaseVectorDBAdapter
 from ..models.document import Document, SearchResult
 from ..utils.exceptions import VectorDBError, ConnectionError, CollectionError
-from ..config.config import VectorDBConfig
+from ..config.config import CompressionConfig, VectorDBConfig
+from ..embedding.quantization import QuantizedVector, TurboQuantCodec
 
 logger = logging.getLogger(__name__)
+
+# Metadata keys the compressed codes are stashed under alongside a document's
+# regular metadata. Prefixed to avoid colliding with caller-supplied metadata.
+_TQ_CODES_KEY = "_turboquant_codes"
+_TQ_VMIN_KEY = "_turboquant_vmin"
+_TQ_SCALE_KEY = "_turboquant_scale"
+
+
+def _encode_codes(codes: np.ndarray) -> str:
+    return base64.b64encode(codes.tobytes()).decode("ascii")
+
+
+def _decode_codes(encoded: str) -> np.ndarray:
+    return np.frombuffer(base64.b64decode(encoded), dtype=np.uint8)
+
+
+def _strip_internal_metadata(doc_metadata: Dict[str, Any]) -> None:
+    """Remove the TurboQuant code fields before handing metadata back to
+    callers — they're storage internals, not caller-supplied metadata."""
+    doc_metadata.pop(_TQ_CODES_KEY, None)
+    doc_metadata.pop(_TQ_VMIN_KEY, None)
+    doc_metadata.pop(_TQ_SCALE_KEY, None)
 
 
 def _distance_to_score(distance: float, space: str) -> float:
@@ -65,6 +90,31 @@ class ChromaAdapter(BaseVectorDBAdapter):
         self.config = config
         self.client = None
         self._collections_cache = {}
+        self._compression_config: Optional[CompressionConfig] = None
+        self._codec: Optional[TurboQuantCodec] = None
+
+    def configure_compression(self, config: CompressionConfig) -> None:
+        """Enable TurboQuant-style compression for documents written after
+        this call. A no-op call (enabled=False, shadow_enabled=False) means
+        codes are never generated or stored.
+        """
+        self._compression_config = config
+        self._codec = None  # rebuilt lazily once the embedding dimension is known
+
+    def _get_codec(self, dimension: int) -> TurboQuantCodec:
+        if self._codec is None or self._codec.dimension != dimension:
+            self._codec = TurboQuantCodec(
+                dimension=dimension,
+                bits=self._compression_config.bits,
+                seed=self._compression_config.seed,
+            )
+        return self._codec
+
+    def _compression_active(self) -> bool:
+        return bool(
+            self._compression_config
+            and (self._compression_config.enabled or self._compression_config.shadow_enabled)
+        )
     
     async def _connect(self) -> None:
         """Connect to ChromaDB."""
@@ -232,11 +282,19 @@ class ChromaAdapter(BaseVectorDBAdapter):
             documents_text = [doc.text for doc in documents]
             metadatas = []
             
+            compression_active = self._compression_active() and embeddings and embeddings[0] is not None
+            codec = self._get_codec(len(embeddings[0])) if compression_active else None
+
             for doc in documents:
                 metadata = doc.metadata.copy() if doc.metadata else {}
                 metadata.update({
                     "created_at": doc.created_at.isoformat(),
                 })
+                if codec is not None and doc.embedding is not None:
+                    quantized = codec.encode(doc.embedding)
+                    metadata[_TQ_CODES_KEY] = _encode_codes(quantized.codes)
+                    metadata[_TQ_VMIN_KEY] = quantized.vmin
+                    metadata[_TQ_SCALE_KEY] = quantized.scale
                 metadatas.append(metadata)
             
             # Store in ChromaDB
@@ -305,7 +363,8 @@ class ChromaAdapter(BaseVectorDBAdapter):
                     doc_metadata = metadata.copy()
                     created_at = doc_metadata.pop("created_at", datetime.utcnow().isoformat())
                     updated_at = doc_metadata.pop("updated_at", None)
-                    
+                    _strip_internal_metadata(doc_metadata)
+
                     document = Document(
                         id=doc_id,
                         text=document_text,
@@ -358,7 +417,8 @@ class ChromaAdapter(BaseVectorDBAdapter):
             doc_metadata = metadata.copy()
             created_at = doc_metadata.pop("created_at", datetime.utcnow().isoformat())
             updated_at = doc_metadata.pop("updated_at", None)
-            
+            _strip_internal_metadata(doc_metadata)
+
             document = Document(
                 id=doc_id,
                 text=document_text,
@@ -451,6 +511,7 @@ class ChromaAdapter(BaseVectorDBAdapter):
                 doc_metadata = (metadata or {}).copy()
                 created_at = doc_metadata.pop("created_at", datetime.utcnow().isoformat())
                 updated_at = doc_metadata.pop("updated_at", None)
+                _strip_internal_metadata(doc_metadata)
 
                 documents.append(Document(
                     id=doc_id,
@@ -466,6 +527,53 @@ class ChromaAdapter(BaseVectorDBAdapter):
         except Exception as e:
             logger.error(f"Failed to fetch all documents from ChromaDB collection {collection}: {e}")
             raise VectorDBError(f"Bulk document fetch failed: {e}")
+
+    async def get_all_quantized_vectors(
+        self, collection: str, filters: Optional[Dict[str, Any]] = None
+    ) -> List[Tuple[str, QuantizedVector]]:
+        """Fetch every (doc_id, QuantizedVector) pair with stored TurboQuant
+        codes in this collection — used by the stage-1 compressed scan.
+
+        Documents written before compression was enabled (or under a
+        different config) have no codes and are silently skipped, since
+        there is nothing valid to score them against.
+        """
+        try:
+            chroma_collection = await self._get_collection(collection)
+
+            get_params: Dict[str, Any] = {"include": ["metadatas"]}
+            where_clause = _build_where_clause(filters)
+            if where_clause:
+                get_params["where"] = where_clause
+
+            loop = asyncio.get_event_loop()
+            results = await loop.run_in_executor(
+                None,
+                lambda: chroma_collection.get(**get_params)
+            )
+
+            entries: List[Tuple[str, QuantizedVector]] = []
+            ids = results.get("ids") or []
+            for i, doc_id in enumerate(ids):
+                metadata = results["metadatas"][i] if results.get("metadatas") else {}
+                if not metadata or _TQ_CODES_KEY not in metadata:
+                    continue
+                codes = _decode_codes(metadata[_TQ_CODES_KEY])
+                quantized = QuantizedVector(
+                    codes=codes,
+                    vmin=metadata[_TQ_VMIN_KEY],
+                    scale=metadata[_TQ_SCALE_KEY],
+                )
+                entries.append((doc_id, quantized))
+
+            logger.debug(
+                f"Fetched {len(entries)} TurboQuant code entries from ChromaDB collection {collection}"
+            )
+            return entries
+
+        except Exception as e:
+            logger.error(f"Failed to fetch TurboQuant codes from ChromaDB collection {collection}: {e}")
+            raise VectorDBError(f"Bulk code fetch failed: {e}")
 
     async def _count_documents_impl(self, collection: str) -> int:
         """Count documents in a ChromaDB collection."""

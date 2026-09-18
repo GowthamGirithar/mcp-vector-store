@@ -66,6 +66,22 @@ class DocumentConfig(BaseModel):
         return self
 
 
+class CompressionConfig(BaseModel):
+    """TurboQuant-style embedding compression configuration.
+
+    Off by default: enabling it changes what gets stored per vector, so
+    turning it on for an existing collection requires re-indexing (encoding
+    codes for already-stored embeddings) rather than just a config flip.
+    shadow_enabled runs the compressed retrieval path alongside the real
+    search path for comparison, without it affecting returned results.
+    """
+    enabled: bool = Field(default=False)
+    shadow_enabled: bool = Field(default=False)
+    bits: int = Field(default=8)
+    seed: int = Field(default=42)
+    candidate_pool_size: int = Field(default=200)
+
+
 class SearchConfig(BaseModel):
     """Search/retrieval tuning configuration.
 
@@ -90,6 +106,7 @@ class Settings(BaseModel):
     server: ServerConfig
     document: DocumentConfig
     search: SearchConfig
+    compression: CompressionConfig
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -136,7 +153,18 @@ class Settings(BaseModel):
             use_reranker=os.getenv("SEARCH_USE_RERANKER", "false").lower() in ("1", "true", "yes")
         )
 
-        return cls(vector_db=vector_db, embedding=embedding, llm=llm, server=server, document=document, search=search)
+        compression = CompressionConfig(
+            enabled=os.getenv("COMPRESSION_ENABLED", "false").lower() in ("1", "true", "yes"),
+            shadow_enabled=os.getenv("COMPRESSION_SHADOW_ENABLED", "false").lower() in ("1", "true", "yes"),
+            bits=int(os.getenv("COMPRESSION_BITS", "8")),
+            seed=int(os.getenv("COMPRESSION_SEED", "42")),
+            candidate_pool_size=int(os.getenv("COMPRESSION_CANDIDATE_POOL_SIZE", "200")),
+        )
+
+        return cls(
+            vector_db=vector_db, embedding=embedding, llm=llm, server=server,
+            document=document, search=search, compression=compression,
+        )
 
 
 # Global settings instance
