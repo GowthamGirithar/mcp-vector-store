@@ -1,0 +1,70 @@
+CLAUDE.md
+  s_b58d058018ad67::t_94b963efddaee7 1
+src/mcp_vectordb/tools/search.py
+  s_edaa3eade33583::t_4f0bf1c91f3cce 355-373
+  s_edaa3eade33583::t_f32339403cce01 3,14
+src/mcp_vectordb/embedding/quantization.py
+  s_edaa3eade33583::t_9d87cb5e818f14 1-97
+src/mcp_vectordb/config/config.py
+  s_edaa3eade33583::t_06bb2ee1e0ace8 69-84
+  s_edaa3eade33583::t_c9ff27a8b50568 109
+  s_edaa3eade33583::t_2ef1a0d3133cf5 156-167
+src/mcp_vectordb/search/turboquant_scan.py
+  s_edaa3eade33583::t_c77548c3df46ae 1-48
+src/mcp_vectordb/search/shadow.py
+  s_edaa3eade33583::t_9aaeb80faa9c24 1-57,66-101
+  s_edaa3eade33583::t_3d8481fc3e3b21 58-65
+src/mcp_vectordb/search/__init__.py
+  s_edaa3eade33583::t_5cfce7e367f556 6-7,14-15
+src/mcp_vectordb/adapters/chroma.py
+  s_edaa3eade33583::t_be603f382f9efe 4,6,10,17-18,22-34
+  s_edaa3eade33583::t_246266126bef9a 420-421
+  s_edaa3eade33583::t_c5998e6d18692d 93-117
+  s_edaa3eade33583::t_5e808581af80af 37-43
+  s_edaa3eade33583::t_3c4a3311fa4181 514
+  s_edaa3eade33583::t_33b036ee9fd09a 531-577
+  s_edaa3eade33583::t_70cc12b507eb4d 366-367
+  s_edaa3eade33583::t_a7d5701e9af15d 285-287,293-297
+  s_edaa3eade33583::t_2fdb76e3f021d9 35-36
+AGENTS.md
+  s_b58d058018ad67::t_d1f3d5edb4c7eb 1-92
+docs/turboquant_and_shadow.md
+  s_8273b14652e1c6::t_ef14b2068efd36 9-10
+  s_b58d058018ad67::t_634054d2b81349 1-8,41-64,85-162
+  s_8273b14652e1c6::t_729aafa7877d3a 11-40
+  s_8273b14652e1c6::t_54405aae9ced28 65-84
+src/mcp_vectordb/services.py
+  s_edaa3eade33583::t_dba70f190eca9d 56-63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.15",
+  "base_commit_sha": "8b16c9cffa2abcfd73334eac7a994f703eac9d03",
+  "prompts": {},
+  "sessions": {
+    "s_8273b14652e1c6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "cdb162ec-3143-4f18-93f3-08f3a526c0f6",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    },
+    "s_b58d058018ad67": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1f75e331-e0e6-4324-bf51-3bb60f3ae682",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    },
+    "s_edaa3eade33583": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2828b720-7dc8-40d9-909b-12493e13d67b",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "GowthamGirithar <gowthamgirithar@gmail.com>"
+    }
+  }
+}
